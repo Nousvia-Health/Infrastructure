@@ -184,8 +184,19 @@ jobs:
         shell: bash
         run: |
           vars_file="${{ steps.tfvars.outputs.file }}"
-          if [ -n "$vars_file" ]; then
-            terraform apply -input=false -var-file="$vars_file" tfplan
-          else
-            terraform apply -input=false tfplan
-          fi
+          for attempt in 1 2 3 4 5; do
+            echo "Terraform apply attempt ${attempt}/5"
+            if [ -n "$vars_file" ]; then
+              terraform apply -input=false -var-file="$vars_file" tfplan && exit 0
+            else
+              terraform apply -input=false tfplan && exit 0
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              echo "Azure may still be completing a previous Storage Account operation; waiting 90 seconds before retrying."
+              sleep 90
+            fi
+          done
+
+          echo "Terraform apply failed after 5 attempts."
+          exit 1

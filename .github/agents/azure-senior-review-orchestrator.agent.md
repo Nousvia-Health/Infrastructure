@@ -21,6 +21,7 @@ Assess whether the repository is:
 - Ready for GitHub-based CI/CD, controlled deployment, drift detection, and audit.
 - Suitable for future integration with Databricks, ML workloads, Azure AI/Cognitive Services, private networking, and enterprise security controls where those are in scope.
 - Documented well enough for architecture review, operations, incident response, onboarding, and compliance evidence.
+- Must keep the cost to minimum by selecting the basic or standard SKU unless the asked for premium or enterprise SKUs. Document the tradeoffs.
 
 ## Non-negotiable review principles
 - Inspect the repository before forming conclusions. Read Terraform roots, modules, provider lock files, workflows, documents, README files, agent instructions, and tests or validation scripts.
