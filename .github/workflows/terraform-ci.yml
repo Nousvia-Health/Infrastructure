@@ -13,6 +13,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: terraform-ci-${{ github.ref }}
@@ -27,10 +28,21 @@ jobs:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
       ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Azure login
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -59,6 +71,7 @@ jobs:
           fi
 
       - name: Terraform plan
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           vars_file="${{ steps.tfvars.outputs.file }}"
