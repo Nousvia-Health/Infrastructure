@@ -1,0 +1,61 @@
+# Copy this file to config/dev.tfvars and replace all replace-me values.
+# Local usage: terraform plan -var-file=config/dev.tfvars
+# CI usage: set TF_VAR_FILE=config/dev.tfvars in the workflow environment.
+
+resource_groups = {
+  platform = {
+    name     = "rg-azure-files-dev"
+    location = "eastus"
+    tags = {
+      environment         = "dev"
+      workload            = "azure-files"
+      owner               = "replace-me"
+      cost_center         = "replace-me"
+      data_classification = "internal"
+      managed_by          = "terraform"
+    }
+  }
+}
+
+networks = {
+  shared = {
+    resource_group_key           = "platform"
+    vnet_name                    = "vnet-azure-files-dev"
+    vnet_address_space           = ["10.20.0.0/16"]
+    private_endpoint_subnet_name = "snet-private-endpoints"
+    private_endpoint_subnet_cidr = "10.20.1.0/24"
+    nsg_name                     = "nsg-azure-files-dev-private-endpoints"
+  }
+}
+
+storage_accounts = {
+  files = {
+    resource_group_key = "platform"
+    name               = "replacewithuniquestorage"
+    replication_type   = "LRS"
+    file_shares = {
+      shared = {
+        name     = "shared"
+        quota_gb = 100
+      }
+    }
+  }
+}
+
+private_endpoints = {
+  files = {
+    resource_group_key  = "platform"
+    network_key          = "shared"
+    storage_account_key = "files"
+    name                 = "pe-azure-files-dev-file"
+  }
+}
+
+tags = {
+  environment         = "dev"
+  workload            = "azure-files"
+  owner               = "replace-me"
+  cost_center         = "replace-me"
+  data_classification = "internal"
+  managed_by          = "terraform"
+}

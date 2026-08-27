@@ -1,0 +1,163 @@
+name: Terraform Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target GitHub environment to deploy to
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - test
+          - prod
+      tfvars_file:
+        description: Optional tfvars file under config/ to use (for example dev.tfvars)
+        required: false
+        default: dev.tfvars
+  workflow_run:
+    workflows:
+      - Terraform CI
+    types:
+      - completed
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-deploy-${{ github.event.inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: plan-${{ github.event.inputs.environment || 'dev' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Terraform backend
+        shell: bash
+        run: |
+          if [ -n "${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}" ] && [ -n "${{ vars.TF_BACKEND_CONTAINER }}" ]; then
+            export TF_CLI_ARGS_init="-backend-config=resource_group_name=${{ vars.TF_BACKEND_RESOURCE_GROUP }} -backend-config=storage_account_name=${{ vars.TF_BACKEND_STORAGE_ACCOUNT }} -backend-config=container_name=${{ vars.TF_BACKEND_CONTAINER }} -backend-config=key=${{ vars.TF_STATE_KEY || 'terraform.tfstate' }}"
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          if [ -f "backend.hcl" ]; then
+            terraform init -input=false -backend-config=backend.hcl
+          else
+            terraform init -input=false -backend=false
+          fi
+
+      - name: Validate tfvars file exists
+        shell: bash
+        run: |
+          if [ -n "${TF_VAR_FILE}" ] && [ ! -f "${TF_VAR_FILE}" ]; then
+            echo "Requested tfvars file ${TF_VAR_FILE} is not present in the repository."
+            exit 1
+          fi
+
+      - name: Terraform plan
+        shell: bash
+        run: |
+          if [ -n "${TF_VAR_FILE}" ]; then
+            terraform plan -input=false -lock=false -var-file="${TF_VAR_FILE}" -out=tfplan
+          else
+            terraform plan -input=false -lock=false -out=tfplan
+          fi
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: tfplan
+          retention-days: 7
+          if-no-files-found: error
+
+  apply:
+    name: apply-${{ github.event.inputs.environment || 'dev' }}
+    needs: plan
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.run_id }}
+          path: .
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          if [ -f "backend.hcl" ]; then
+            terraform init -input=false -backend-config=backend.hcl
+          else
+            terraform init -input=false -backend=false
+          fi
+
+      - name: Terraform apply
+        shell: bash
+        run: |
+          if [ -n "${TF_VAR_FILE}" ] && [ -f "${TF_VAR_FILE}" ]; then
+            terraform apply -input=false -var-file="${TF_VAR_FILE}" tfplan
+          else
+            terraform apply -input=false tfplan
+          fi

@@ -1,0 +1,65 @@
+name: Terraform Drift Detection
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-drift
+  cancel-in-progress: true
+
+jobs:
+  drift-check:
+    name: drift-readonly-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_FILE: ${{ vars.TF_VAR_FILE || 'config/dev.tfvars' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          if [ -f "backend.hcl" ]; then
+            terraform init -input=false -backend-config=backend.hcl
+          else
+            terraform init -input=false -backend=false
+          fi
+
+      - name: Terraform refresh-only plan
+        shell: bash
+        run: |
+          if [ -n "${TF_VAR_FILE}" ] && [ -f "${TF_VAR_FILE}" ]; then
+            terraform plan -refresh-only -input=false -lock=false -var-file="${TF_VAR_FILE}" -out=tfdriftplan
+          else
+            terraform plan -refresh-only -input=false -lock=false -out=tfdriftplan
+          fi
+
+      - name: Drift summary
+        run: echo "Read-only drift check completed. No Terraform apply ran."

@@ -1,0 +1,78 @@
+name: Terraform CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: terraform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate-and-plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      ARM_USE_OIDC: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Determine tfvars file
+        id: tfvars
+        shell: bash
+        run: |
+          if [ -f config/dev.tfvars ]; then
+            echo "file=config/dev.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f config/prod.tfvars ]; then
+            echo "file=config/prod.tfvars" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terraform plan
+        shell: bash
+        run: |
+          vars_file="${{ steps.tfvars.outputs.file }}"
+          if [ -n "$vars_file" ]; then
+            terraform plan -input=false -lock=false -var-file="$vars_file" -out=tfplan
+          else
+            terraform plan -input=false -lock=false -out=tfplan
+          fi
+
+      - name: Upload plan artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ github.sha }}
+          path: tfplan
+          retention-days: 3
+          if-no-files-found: error
