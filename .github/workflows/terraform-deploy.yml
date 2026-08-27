@@ -81,19 +81,29 @@ jobs:
             terraform init -input=false -backend=false
           fi
 
-      - name: Validate tfvars file exists
+      - name: Select tfvars file if present
+        id: tfvars
         shell: bash
         run: |
-          if [ -n "${TF_VAR_FILE}" ] && [ ! -f "${TF_VAR_FILE}" ]; then
-            echo "Requested tfvars file ${TF_VAR_FILE} is not present in the repository."
-            exit 1
+          selected_input="${{ github.event.inputs.tfvars_file || '' }}"
+          if [ -n "$selected_input" ] && [ -f "$selected_input" ]; then
+            echo "file=$selected_input" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/${{ github.event.inputs.environment || 'dev' }}.tfvars" ]; then
+            echo "file=config/${{ github.event.inputs.environment || 'dev' }}.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/dev.tfvars" ]; then
+            echo "file=config/dev.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/prod.tfvars" ]; then
+            echo "file=config/prod.tfvars" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Terraform plan
         shell: bash
         run: |
-          if [ -n "${TF_VAR_FILE}" ]; then
-            terraform plan -input=false -lock=false -var-file="${TF_VAR_FILE}" -out=tfplan
+          vars_file="${{ steps.tfvars.outputs.file }}"
+          if [ -n "$vars_file" ]; then
+            terraform plan -input=false -lock=false -var-file="$vars_file" -out=tfplan
           else
             terraform plan -input=false -lock=false -out=tfplan
           fi
@@ -153,11 +163,29 @@ jobs:
             terraform init -input=false -backend=false
           fi
 
+      - name: Select tfvars file if present
+        id: tfvars
+        shell: bash
+        run: |
+          selected_input="${{ github.event.inputs.tfvars_file || '' }}"
+          if [ -n "$selected_input" ] && [ -f "$selected_input" ]; then
+            echo "file=$selected_input" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/${{ github.event.inputs.environment || 'dev' }}.tfvars" ]; then
+            echo "file=config/${{ github.event.inputs.environment || 'dev' }}.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/dev.tfvars" ]; then
+            echo "file=config/dev.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f "config/prod.tfvars" ]; then
+            echo "file=config/prod.tfvars" >> "$GITHUB_OUTPUT"
+          else
+            echo "file=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Terraform apply
         shell: bash
         run: |
-          if [ -n "${TF_VAR_FILE}" ] && [ -f "${TF_VAR_FILE}" ]; then
-            terraform apply -input=false -var-file="${TF_VAR_FILE}" tfplan
+          vars_file="${{ steps.tfvars.outputs.file }}"
+          if [ -n "$vars_file" ]; then
+            terraform apply -input=false -var-file="$vars_file" tfplan
           else
             terraform apply -input=false tfplan
           fi

@@ -14,7 +14,6 @@ permissions:
   contents: read
   id-token: write
   pull-requests: write
-  id-token: write
 
 concurrency:
   group: terraform-ci-${{ github.ref }}
@@ -63,10 +62,15 @@ jobs:
         id: tfvars
         shell: bash
         run: |
-          if [ -f config/dev.tfvars ]; then
+          env_name="${GITHUB_REF_NAME:-${{ github.ref_name }}}"
+          if [ -n "${{ github.event.inputs.tfvars_file || '' }}" ] && [ -f "${{ github.event.inputs.tfvars_file || '' }}" ]; then
+            echo "file=${{ github.event.inputs.tfvars_file }}" >> "$GITHUB_OUTPUT"
+          elif [ -f config/dev.tfvars ]; then
             echo "file=config/dev.tfvars" >> "$GITHUB_OUTPUT"
           elif [ -f config/prod.tfvars ]; then
             echo "file=config/prod.tfvars" >> "$GITHUB_OUTPUT"
+          elif [ -f config/${env_name}.tfvars ]; then
+            echo "file=config/${env_name}.tfvars" >> "$GITHUB_OUTPUT"
           else
             echo "file=" >> "$GITHUB_OUTPUT"
           fi
