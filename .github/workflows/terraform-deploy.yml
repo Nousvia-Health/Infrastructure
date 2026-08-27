@@ -103,9 +103,9 @@ jobs:
         run: |
           vars_file="${{ steps.tfvars.outputs.file }}"
           if [ -n "$vars_file" ]; then
-            terraform plan -input=false -lock=false -var-file="$vars_file" -out=tfplan
+            terraform plan -input=false -var-file="$vars_file" -out=tfplan
           else
-            terraform plan -input=false -lock=false -out=tfplan
+            terraform plan -input=false -out=tfplan
           fi
 
       - name: Upload plan artifact
@@ -193,6 +193,28 @@ jobs:
           vars_file="${{ steps.tfvars.outputs.file }}"
           for attempt in 1 2 3 4 5; do
             echo "Terraform apply attempt ${attempt}/5"
+
+            if [ "$attempt" -gt 1 ]; then
+              echo "Refreshing state and creating a new plan before retrying."
+              if [ -n "$vars_file" ]; then
+                if ! terraform plan -input=false -var-file="$vars_file" -out=tfplan; then
+                  echo "Terraform plan failed while Azure is still completing the previous operation."
+                  if [ "$attempt" -lt 5 ]; then
+                    sleep 90
+                  fi
+                  continue
+                fi
+              else
+                if ! terraform plan -input=false -out=tfplan; then
+                  echo "Terraform plan failed while Azure is still completing the previous operation."
+                  if [ "$attempt" -lt 5 ]; then
+                    sleep 90
+                  fi
+                  continue
+                fi
+              fi
+            fi
+
             if [ -n "$vars_file" ]; then
               terraform apply -input=false -var-file="$vars_file" tfplan && exit 0
             else
