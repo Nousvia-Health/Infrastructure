@@ -51,6 +51,7 @@ jobs:
       TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
       TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+      TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -69,16 +70,72 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Validate backend configuration
+      - name: Configure backend names
         shell: bash
         run: |
-          for variable_name in TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_STATE_KEY; do
-            if [ -z "${!variable_name:-}" ]; then
-              echo "::error title=Missing backend configuration::Set ${variable_name} as a variable on the selected GitHub Environment."
-              exit 1
-            fi
-          done
-          echo "Backend configuration is present."
+          deploy_environment="${{ github.event.inputs.environment || 'dev' }}"
+          subscription_suffix="$(printf '%s' "$ARM_SUBSCRIPTION_ID" | tr -d '-' | cut -c1-9 | tr '[:upper:]' '[:lower:]')"
+
+          backend_resource_group="${TF_BACKEND_RESOURCE_GROUP:-rg-nousvia-tfstate-${deploy_environment}}"
+          backend_storage_account="${TF_BACKEND_STORAGE_ACCOUNT:-stnousviatf${deploy_environment}${subscription_suffix}}"
+          backend_container="${TF_BACKEND_CONTAINER:-tfstate}"
+          state_key="${TF_STATE_KEY:-${deploy_environment}/infrastructure.tfstate}"
+
+          if ! [[ "$backend_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
+            echo "::error title=Invalid backend storage account::${backend_storage_account} must contain 3-24 lowercase letters or numbers."
+            exit 1
+          fi
+
+          {
+            echo "TF_BACKEND_RESOURCE_GROUP=$backend_resource_group"
+            echo "TF_BACKEND_STORAGE_ACCOUNT=$backend_storage_account"
+            echo "TF_BACKEND_CONTAINER=$backend_container"
+            echo "TF_STATE_KEY=$state_key"
+          } >> "$GITHUB_ENV"
+
+          echo "Using backend resource group: $backend_resource_group"
+          echo "Using backend storage account: $backend_storage_account"
+          echo "Using backend container: $backend_container"
+          echo "Using backend state key: $state_key"
+
+      - name: Create Terraform backend if needed
+        shell: bash
+        run: |
+          az group create \
+            --name "$TF_BACKEND_RESOURCE_GROUP" \
+            --location "$TF_BACKEND_LOCATION" \
+            --tags \
+              environment="${{ github.event.inputs.environment || 'dev' }}" \
+              workload="terraform-state" \
+              managed-by="github-actions" \
+            --only-show-errors
+
+          if ! az storage account show \
+            --name "$TF_BACKEND_STORAGE_ACCOUNT" \
+            --resource-group "$TF_BACKEND_RESOURCE_GROUP" \
+            --only-show-errors > /dev/null 2>&1; then
+            az storage account create \
+              --name "$TF_BACKEND_STORAGE_ACCOUNT" \
+              --resource-group "$TF_BACKEND_RESOURCE_GROUP" \
+              --location "$TF_BACKEND_LOCATION" \
+              --sku Standard_LRS \
+              --kind StorageV2 \
+              --https-only true \
+              --min-tls-version TLS1_2 \
+              --allow-blob-public-access false \
+              --allow-shared-key-access false \
+              --tags \
+                environment="${{ github.event.inputs.environment || 'dev' }}" \
+                workload="terraform-state" \
+                managed-by="github-actions" \
+              --only-show-errors
+          fi
+
+          az storage container create \
+            --name "$TF_BACKEND_CONTAINER" \
+            --account-name "$TF_BACKEND_STORAGE_ACCOUNT" \
+            --auth-mode login \
+            --only-show-errors
 
       - name: Terraform init
         shell: bash
@@ -87,7 +144,9 @@ jobs:
             -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
             -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
             -backend-config="container_name=$TF_BACKEND_CONTAINER" \
-            -backend-config="key=$TF_STATE_KEY"
+            -backend-config="key=$TF_STATE_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Select tfvars file if present
         id: tfvars
@@ -142,6 +201,7 @@ jobs:
       TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
       TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+      TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -160,16 +220,28 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Validate backend configuration
+      - name: Configure backend names
         shell: bash
         run: |
-          for variable_name in TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_STATE_KEY; do
-            if [ -z "${!variable_name:-}" ]; then
-              echo "::error title=Missing backend configuration::Set ${variable_name} as a variable on the selected GitHub Environment."
-              exit 1
-            fi
-          done
-          echo "Backend configuration is present."
+          deploy_environment="${{ github.event.inputs.environment || 'dev' }}"
+          subscription_suffix="$(printf '%s' "$ARM_SUBSCRIPTION_ID" | tr -d '-' | cut -c1-9 | tr '[:upper:]' '[:lower:]')"
+
+          backend_resource_group="${TF_BACKEND_RESOURCE_GROUP:-rg-nousvia-tfstate-${deploy_environment}}"
+          backend_storage_account="${TF_BACKEND_STORAGE_ACCOUNT:-stnousviatf${deploy_environment}${subscription_suffix}}"
+          backend_container="${TF_BACKEND_CONTAINER:-tfstate}"
+          state_key="${TF_STATE_KEY:-${deploy_environment}/infrastructure.tfstate}"
+
+          if ! [[ "$backend_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
+            echo "::error title=Invalid backend storage account::${backend_storage_account} must contain 3-24 lowercase letters or numbers."
+            exit 1
+          fi
+
+          {
+            echo "TF_BACKEND_RESOURCE_GROUP=$backend_resource_group"
+            echo "TF_BACKEND_STORAGE_ACCOUNT=$backend_storage_account"
+            echo "TF_BACKEND_CONTAINER=$backend_container"
+            echo "TF_STATE_KEY=$state_key"
+          } >> "$GITHUB_ENV"
 
       - name: Download plan artifact
         uses: actions/download-artifact@v4
@@ -192,7 +264,9 @@ jobs:
             -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
             -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
             -backend-config="container_name=$TF_BACKEND_CONTAINER" \
-            -backend-config="key=$TF_STATE_KEY"
+            -backend-config="key=$TF_STATE_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Select tfvars file if present
         id: tfvars
