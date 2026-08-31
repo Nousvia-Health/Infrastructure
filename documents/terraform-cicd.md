@@ -39,22 +39,26 @@ Required repository or environment variables:
 - `TF_BACKEND_RESOURCE_GROUP`
 - `TF_BACKEND_STORAGE_ACCOUNT`
 - `TF_BACKEND_CONTAINER`
-- `TF_STATE_KEY` (optional; the deployment workflow defaults to an environment-specific key)
+- `TF_STATE_KEY`
 - `TF_VAR_FILE` (optional for environments using a specific tfvars file)
 
-The backend variables must be configured as GitHub Variables (repository-level or
-on each deployment Environment), not as shell variables that exist only on a
-developer machine. The deployment workflow maps `TF_BACKEND_RESOURCE_GROUP`,
-`TF_BACKEND_STORAGE_ACCOUNT`, `TF_BACKEND_CONTAINER`, and optional `TF_STATE_KEY`
-from the selected GitHub Environment into Terraform. If `TF_STATE_KEY` is not
-set, the workflow uses an environment-specific key such as
-`terraform-dev.tfstate`.
+The backend variables must be configured as GitHub Variables on the selected
+deployment Environment (repository-level variables are also supported):
+`TF_BACKEND_RESOURCE_GROUP`, `TF_BACKEND_STORAGE_ACCOUNT`,
+`TF_BACKEND_CONTAINER`, and `TF_STATE_KEY`. The deployment workflow validates
+all four values before running `terraform init -reconfigure` in both the plan
+and apply jobs. It does not read a local `backend.hcl`; this prevents a stale or
+untracked backend file from selecting a different state location.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
 ## Backend and state
 
-This repository does not ship a real Azure Storage backend configuration. The deployment workflows include backend placeholders and require a backend config to be created in the repository or injected via environment variables before deploying to Azure.
+This repository does not ship a real Azure Storage backend configuration. The
+deployment workflow injects the backend configuration from GitHub Variables and
+initializes the backend independently in each fresh runner. The downloaded plan
+is checked before apply, and `terraform apply` uses that saved plan directly;
+Terraform variables are already stored in the plan and are not supplied again.
 
 For production, prefer a dedicated state account and container per environment, with locking enabled and restricted network access.
 
