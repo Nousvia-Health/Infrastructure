@@ -1,6 +1,6 @@
 # Terraform CI/CD pipeline
 
-This repository uses GitHub Actions to validate changes, create a reviewable Terraform plan, and deploy only after a protected GitHub Environment approval gate.
+This repository uses GitHub Actions to validate changes, create an environment-specific Terraform plan, and deploy only after a protected GitHub Environment approval gate.
 
 ## Pipeline stages
 
@@ -9,11 +9,12 @@ The workflow in `.github/workflows/terraform-ci.yml` runs on pull requests and o
 
 It performs the following checks:
 - `terraform fmt -check -recursive`
-- `terraform init -backend=false` for pull requests
-- `terraform init -reconfigure` with the Azure Storage backend for push plans
+- `terraform init -backend=false`
 - `terraform validate`
-- `terraform plan` with the selected tfvars file when available
-- artifact upload of the generated plan for the default branch run
+
+CI intentionally does not access remote state or create a plan. After CI
+succeeds, the deployment workflow creates the plan using the selected GitHub
+Environment and its backend configuration.
 
 ### 2. Approved deployment
 The workflow in `.github/workflows/terraform-deploy.yml` handles deployment.
@@ -51,10 +52,6 @@ all four values before running `terraform init -reconfigure` in both the plan
 and apply jobs. It does not read a local `backend.hcl`; this prevents a stale or
 untracked backend file from selecting a different state location.
 
-The Terraform CI push plan also requires these four values as repository-level
-variables because the CI job does not select a GitHub deployment Environment.
-Pull request validation does not access the remote backend or run a plan.
-
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
 ## Backend and state
@@ -70,7 +67,8 @@ For production, prefer a dedicated state account and container per environment, 
 ## Required repository settings
 
 Configure the following in GitHub:
-- repository or environment variables for the Azure identity and backend settings above
+- environment secrets for the Azure identity settings above
+- environment variables for the backend settings above
 - GitHub Environment named `dev`, `test`, or `prod` as needed
 - required reviewers on production
 - branch protection on the default branch with required workflow checks

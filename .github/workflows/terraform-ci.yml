@@ -12,8 +12,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
 
 concurrency:
   group: terraform-ci-${{ github.ref }}
@@ -21,32 +19,16 @@ concurrency:
 
 jobs:
   validate:
-    name: validate-and-plan
+    name: validate
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      ARM_USE_OIDC: "true"
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
-      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
-      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
-      TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Azure login
-        if: github.event_name != 'pull_request'
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -56,67 +38,8 @@ jobs:
       - name: Terraform format check
         run: terraform fmt -check -recursive
 
-      - name: Terraform init for pull request validation
-        if: github.event_name == 'pull_request'
+      - name: Terraform init for validation
         run: terraform init -backend=false
-
-      - name: Validate backend configuration
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          for variable_name in TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_STATE_KEY; do
-            if [ -z "${!variable_name:-}" ]; then
-              echo "::error title=Missing backend configuration::Set ${variable_name} as a repository variable."
-              exit 1
-            fi
-          done
-
-      - name: Terraform init for plan
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          terraform init -input=false -reconfigure \
-            -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
-            -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
-            -backend-config="container_name=$TF_BACKEND_CONTAINER" \
-            -backend-config="key=$TF_STATE_KEY"
 
       - name: Terraform validate
         run: terraform validate
-
-      - name: Determine tfvars file
-        id: tfvars
-        shell: bash
-        run: |
-          env_name="${GITHUB_REF_NAME:-${{ github.ref_name }}}"
-          if [ -n "${{ github.event.inputs.tfvars_file || '' }}" ] && [ -f "${{ github.event.inputs.tfvars_file || '' }}" ]; then
-            echo "file=${{ github.event.inputs.tfvars_file }}" >> "$GITHUB_OUTPUT"
-          elif [ -f config/dev.tfvars ]; then
-            echo "file=config/dev.tfvars" >> "$GITHUB_OUTPUT"
-          elif [ -f config/prod.tfvars ]; then
-            echo "file=config/prod.tfvars" >> "$GITHUB_OUTPUT"
-          elif [ -f config/${env_name}.tfvars ]; then
-            echo "file=config/${env_name}.tfvars" >> "$GITHUB_OUTPUT"
-          else
-            echo "file=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Terraform plan
-        if: github.event_name != 'pull_request'
-        shell: bash
-        run: |
-          vars_file="${{ steps.tfvars.outputs.file }}"
-          if [ -n "$vars_file" ]; then
-            terraform plan -input=false -lock=false -var-file="$vars_file" -out=tfplan
-          else
-            terraform plan -input=false -lock=false -out=tfplan
-          fi
-
-      - name: Upload plan artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ github.sha }}
-          path: tfplan
-          retention-days: 3
-          if-no-files-found: error
