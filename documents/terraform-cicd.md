@@ -39,8 +39,16 @@ Required repository or environment variables:
 - `TF_BACKEND_RESOURCE_GROUP`
 - `TF_BACKEND_STORAGE_ACCOUNT`
 - `TF_BACKEND_CONTAINER`
-- `TF_STATE_KEY` (optional, defaults to `terraform.tfstate`)
+- `TF_STATE_KEY` (optional; the deployment workflow defaults to an environment-specific key)
 - `TF_VAR_FILE` (optional for environments using a specific tfvars file)
+
+The backend variables must be configured as GitHub Variables (repository-level or
+on each deployment Environment), not as shell variables that exist only on a
+developer machine. The deployment workflow maps `TF_BACKEND_RESOURCE_GROUP`,
+`TF_BACKEND_STORAGE_ACCOUNT`, `TF_BACKEND_CONTAINER`, and optional `TF_STATE_KEY`
+from the selected GitHub Environment into Terraform. If `TF_STATE_KEY` is not
+set, the workflow uses an environment-specific key such as
+`terraform-dev.tfstate`.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 

@@ -47,6 +47,10 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || format('terraform-{0}.tfstate', github.event.inputs.environment || 'dev') }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -69,9 +73,9 @@ jobs:
         shell: bash
         run: |
           if [ -f "backend.hcl" ]; then
-            terraform init -input=false -backend-config=backend.hcl
+            terraform init -input=false -reconfigure -backend-config=backend.hcl
           elif [ -n "$TF_BACKEND_RESOURCE_GROUP" ] && [ -n "$TF_BACKEND_STORAGE_ACCOUNT" ] && [ -n "$TF_BACKEND_CONTAINER" ]; then
-            terraform init -input=false \
+            terraform init -input=false -reconfigure \
               -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
               -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
               -backend-config="container_name=$TF_BACKEND_CONTAINER" \
@@ -130,6 +134,10 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY || format('terraform-{0}.tfstate', github.event.inputs.environment || 'dev') }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -158,9 +166,9 @@ jobs:
         shell: bash
         run: |
           if [ -f "backend.hcl" ]; then
-            terraform init -input=false -backend-config=backend.hcl
+            terraform init -input=false -reconfigure -backend-config=backend.hcl
           elif [ -n "$TF_BACKEND_RESOURCE_GROUP" ] && [ -n "$TF_BACKEND_STORAGE_ACCOUNT" ] && [ -n "$TF_BACKEND_CONTAINER" ]; then
-            terraform init -input=false \
+            terraform init -input=false -reconfigure \
               -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
               -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
               -backend-config="container_name=$TF_BACKEND_CONTAINER" \
