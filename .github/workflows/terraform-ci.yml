@@ -31,6 +31,10 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
 
     steps:
       - name: Checkout
@@ -52,8 +56,30 @@ jobs:
       - name: Terraform format check
         run: terraform fmt -check -recursive
 
-      - name: Terraform init
+      - name: Terraform init for pull request validation
+        if: github.event_name == 'pull_request'
         run: terraform init -backend=false
+
+      - name: Validate backend configuration
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          for variable_name in TF_BACKEND_RESOURCE_GROUP TF_BACKEND_STORAGE_ACCOUNT TF_BACKEND_CONTAINER TF_STATE_KEY; do
+            if [ -z "${!variable_name:-}" ]; then
+              echo "::error title=Missing backend configuration::Set ${variable_name} as a repository variable."
+              exit 1
+            fi
+          done
+
+      - name: Terraform init for plan
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          terraform init -input=false -reconfigure \
+            -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TF_BACKEND_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY"
 
       - name: Terraform validate
         run: terraform validate

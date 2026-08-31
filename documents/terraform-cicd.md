@@ -9,7 +9,8 @@ The workflow in `.github/workflows/terraform-ci.yml` runs on pull requests and o
 
 It performs the following checks:
 - `terraform fmt -check -recursive`
-- `terraform init -backend=false`
+- `terraform init -backend=false` for pull requests
+- `terraform init -reconfigure` with the Azure Storage backend for push plans
 - `terraform validate`
 - `terraform plan` with the selected tfvars file when available
 - artifact upload of the generated plan for the default branch run
@@ -49,6 +50,10 @@ deployment Environment (repository-level variables are also supported):
 all four values before running `terraform init -reconfigure` in both the plan
 and apply jobs. It does not read a local `backend.hcl`; this prevents a stale or
 untracked backend file from selecting a different state location.
+
+The Terraform CI push plan also requires these four values as repository-level
+variables because the CI job does not select a GitHub deployment Environment.
+Pull request validation does not access the remote backend or run a plan.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
