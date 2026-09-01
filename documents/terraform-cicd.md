@@ -74,6 +74,12 @@ validation-only `azurefilesdev` default, which is not globally unique. Set
 `TF_WORKLOAD_STORAGE_ACCOUNT` to override the derived name. Values explicitly
 provided by a tfvars file continue to take precedence.
 
+The workload Azure Files account keeps Shared Key enabled because the AzureRM
+provider uses Shared Key for Azure Files data-plane operations. The deployment
+repairs a partially created account through Azure Resource Manager before
+planning. This does not change the Terraform state backend, which continues to
+use OIDC and Entra ID authentication.
+
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
 ## Backend and state

@@ -157,6 +157,30 @@ jobs:
             -backend-config="use_oidc=true" \
             -backend-config="use_azuread_auth=true"
 
+      - name: Repair existing workload storage authentication
+        shell: bash
+        run: |
+          workload_account_id="$(az storage account list \
+            --query "[?name=='${TF_VAR_storage_account_name}'].id | [0]" \
+            --output tsv \
+            --only-show-errors)"
+
+          if [ -n "$workload_account_id" ]; then
+            shared_key_enabled="$(az resource show \
+              --ids "$workload_account_id" \
+              --query properties.allowSharedKeyAccess \
+              --output tsv \
+              --only-show-errors)"
+
+            if [ "$shared_key_enabled" != "true" ]; then
+              echo "Enabling Shared Key compatibility for Azure Files on $TF_VAR_storage_account_name."
+              az resource update \
+                --ids "$workload_account_id" \
+                --set properties.allowSharedKeyAccess=true \
+                --only-show-errors > /dev/null
+            fi
+          fi
+
       - name: Select tfvars file if present
         id: tfvars
         shell: bash

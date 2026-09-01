@@ -94,7 +94,7 @@ The subnet sets `private_endpoint_network_policies = "Disabled"`, which is requi
 
 - Authenticate Terraform with Azure CLI, workload identity federation, or managed identity. Never place client secrets, storage keys, or connection strings in Terraform or committed variable files.
 - Disable storage public network access and require HTTPS/TLS 1.2.
-- Disable anonymous nested-item public access and shared key authentication by default. Before client onboarding, configure Entra-based Azure Files authorization if SMB users or workloads require it.
+- Disable anonymous nested-item public access. Shared Key remains enabled for Terraform's Azure Files data-plane operations; restrict key access through RBAC and never expose account keys in workflow output. Before client onboarding, configure Entra-based Azure Files authorization for SMB users or workloads where supported.
 - Use RBAC for deployment and data access. Scope roles to the resource group or individual storage account; avoid subscription-wide Owner assignments.
 - Keep `*.tfvars`, state, plans, and generated credentials out of source control. Use remote state with locking for shared environments.
 - Add Azure Policy, Defender for Storage, diagnostic settings, and Key Vault integration as platform requirements for production.

@@ -9,7 +9,8 @@ resource "azurerm_storage_account" "this" {
   https_traffic_only_enabled      = true
   public_network_access_enabled   = false
   allow_nested_items_to_be_public = false
-  shared_access_key_enabled       = false
+  # AzureRM uses Shared Key for Azure Files data-plane operations.
+  shared_access_key_enabled = true
 
   tags = var.tags
 }
