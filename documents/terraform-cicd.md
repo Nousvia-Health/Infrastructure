@@ -45,6 +45,7 @@ Optional backend overrides:
 - `TF_BACKEND_CONTAINER`
 - `TF_STATE_KEY`
 - `TF_BACKEND_LOCATION`
+- `TF_WORKLOAD_STORAGE_ACCOUNT` (optional globally unique workload account name)
 - `TF_VAR_FILE` (optional for environments using a specific tfvars file)
 
 The deployment workflow derives an Azure-standard backend name when backend
@@ -66,6 +67,12 @@ deployments can override any default with
 `TF_BACKEND_CONTAINER`, `TF_STATE_KEY`, and `TF_BACKEND_LOCATION` on the
 selected GitHub Environment. Plan and apply jobs calculate the same values
 independently, and the repository does not use a local `backend.hcl`.
+
+When no tfvars file supplies a workload storage account, the deployment uses
+`stnviafiles<environment><subscription-suffix>`. This avoids the
+validation-only `azurefilesdev` default, which is not globally unique. Set
+`TF_WORKLOAD_STORAGE_ACCOUNT` to override the derived name. Values explicitly
+provided by a tfvars file continue to take precedence.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 

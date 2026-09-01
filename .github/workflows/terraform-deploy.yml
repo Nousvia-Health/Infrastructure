@@ -52,6 +52,7 @@ jobs:
       TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
       TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
+      TF_WORKLOAD_STORAGE_ACCOUNT: ${{ vars.TF_WORKLOAD_STORAGE_ACCOUNT }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -80,9 +81,15 @@ jobs:
           backend_storage_account="${TF_BACKEND_STORAGE_ACCOUNT:-stnousviatf${deploy_environment}${subscription_suffix}}"
           backend_container="${TF_BACKEND_CONTAINER:-tfstate}"
           state_key="${TF_STATE_KEY:-${deploy_environment}/infrastructure.tfstate}"
+          workload_storage_account="${TF_WORKLOAD_STORAGE_ACCOUNT:-stnviafiles${deploy_environment}${subscription_suffix}}"
 
           if ! [[ "$backend_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
             echo "::error title=Invalid backend storage account::${backend_storage_account} must contain 3-24 lowercase letters or numbers."
+            exit 1
+          fi
+
+          if ! [[ "$workload_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
+            echo "::error title=Invalid workload storage account::${workload_storage_account} must contain 3-24 lowercase letters or numbers."
             exit 1
           fi
 
@@ -91,12 +98,14 @@ jobs:
             echo "TF_BACKEND_STORAGE_ACCOUNT=$backend_storage_account"
             echo "TF_BACKEND_CONTAINER=$backend_container"
             echo "TF_STATE_KEY=$state_key"
+            echo "TF_VAR_storage_account_name=$workload_storage_account"
           } >> "$GITHUB_ENV"
 
           echo "Using backend resource group: $backend_resource_group"
           echo "Using backend storage account: $backend_storage_account"
           echo "Using backend container: $backend_container"
           echo "Using backend state key: $state_key"
+          echo "Using default workload storage account: $workload_storage_account"
 
       - name: Create Terraform backend if needed
         shell: bash
@@ -202,6 +211,7 @@ jobs:
       TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
       TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
+      TF_WORKLOAD_STORAGE_ACCOUNT: ${{ vars.TF_WORKLOAD_STORAGE_ACCOUNT }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -230,9 +240,15 @@ jobs:
           backend_storage_account="${TF_BACKEND_STORAGE_ACCOUNT:-stnousviatf${deploy_environment}${subscription_suffix}}"
           backend_container="${TF_BACKEND_CONTAINER:-tfstate}"
           state_key="${TF_STATE_KEY:-${deploy_environment}/infrastructure.tfstate}"
+          workload_storage_account="${TF_WORKLOAD_STORAGE_ACCOUNT:-stnviafiles${deploy_environment}${subscription_suffix}}"
 
           if ! [[ "$backend_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
             echo "::error title=Invalid backend storage account::${backend_storage_account} must contain 3-24 lowercase letters or numbers."
+            exit 1
+          fi
+
+          if ! [[ "$workload_storage_account" =~ ^[a-z0-9]{3,24}$ ]]; then
+            echo "::error title=Invalid workload storage account::${workload_storage_account} must contain 3-24 lowercase letters or numbers."
             exit 1
           fi
 
@@ -241,6 +257,7 @@ jobs:
             echo "TF_BACKEND_STORAGE_ACCOUNT=$backend_storage_account"
             echo "TF_BACKEND_CONTAINER=$backend_container"
             echo "TF_STATE_KEY=$state_key"
+            echo "TF_VAR_storage_account_name=$workload_storage_account"
           } >> "$GITHUB_ENV"
 
       - name: Download plan artifact
