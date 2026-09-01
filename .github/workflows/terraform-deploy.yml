@@ -45,7 +45,6 @@ jobs:
       TF_INPUT: "false"
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_OBJECT_ID: ${{ vars.AZURE_CLIENT_OBJECT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
@@ -132,77 +131,11 @@ jobs:
               --only-show-errors
           fi
 
-          if ! az storage container-rm show \
+          az storage container create \
             --name "$TF_BACKEND_CONTAINER" \
-            --storage-account "$TF_BACKEND_STORAGE_ACCOUNT" \
-            --resource-group "$TF_BACKEND_RESOURCE_GROUP" \
-            --only-show-errors > /dev/null 2>&1; then
-            az storage container-rm create \
-              --name "$TF_BACKEND_CONTAINER" \
-              --storage-account "$TF_BACKEND_STORAGE_ACCOUNT" \
-              --resource-group "$TF_BACKEND_RESOURCE_GROUP" \
-              --public-access off \
-              --only-show-errors
-          fi
-
-      - name: Grant backend data access
-        shell: bash
-        run: |
-          principal_object_id="${ARM_CLIENT_OBJECT_ID:-}"
-          if [ -z "$principal_object_id" ]; then
-            principal_object_id="$(az ad sp show --id "$ARM_CLIENT_ID" --query id --output tsv --only-show-errors 2>/dev/null || true)"
-          fi
-
-          if [ -z "$principal_object_id" ]; then
-            echo "::error title=Unable to resolve deployment identity::Set AZURE_CLIENT_OBJECT_ID as a variable on the selected GitHub Environment."
-            exit 1
-          fi
-
-          storage_scope="$(az storage account show \
-            --name "$TF_BACKEND_STORAGE_ACCOUNT" \
-            --resource-group "$TF_BACKEND_RESOURCE_GROUP" \
-            --query id \
-            --output tsv \
-            --only-show-errors)"
-          container_scope="${storage_scope}/blobServices/default/containers/${TF_BACKEND_CONTAINER}"
-
-          assignment_count="$(az role assignment list \
-            --assignee-object-id "$principal_object_id" \
-            --scope "$container_scope" \
-            --role "Storage Blob Data Contributor" \
-            --include-inherited \
-            --query 'length(@)' \
-            --output tsv \
-            --only-show-errors)"
-
-          if [ "${assignment_count:-0}" -eq 0 ]; then
-            az role assignment create \
-              --assignee-object-id "$principal_object_id" \
-              --assignee-principal-type ServicePrincipal \
-              --role "Storage Blob Data Contributor" \
-              --scope "$container_scope" \
-              --only-show-errors
-          else
-            echo "Storage Blob Data Contributor access is already present."
-          fi
-
-          for attempt in $(seq 1 12); do
-            if az storage blob list \
-              --account-name "$TF_BACKEND_STORAGE_ACCOUNT" \
-              --container-name "$TF_BACKEND_CONTAINER" \
-              --auth-mode login \
-              --num-results 1 \
-              --only-show-errors > /dev/null 2>&1; then
-              echo "Backend data access is ready."
-              exit 0
-            fi
-
-            echo "Waiting for backend RBAC propagation (${attempt}/12)."
-            sleep 10
-          done
-
-          echo "::error title=Backend RBAC propagation timeout::Storage Blob Data Contributor access is not effective yet. Retry the workflow after Azure RBAC propagation completes."
-          exit 1
+            --account-name "$TF_BACKEND_STORAGE_ACCOUNT" \
+            --auth-mode login \
+            --only-show-errors
 
       - name: Terraform init
         shell: bash
@@ -262,7 +195,6 @@ jobs:
       TF_INPUT: "false"
       ARM_USE_OIDC: "true"
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_OBJECT_ID: ${{ vars.AZURE_CLIENT_OBJECT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}

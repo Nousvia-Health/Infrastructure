@@ -39,9 +39,6 @@ Required secrets on each deployment Environment:
 - `ARM_TENANT_ID`
 - `ARM_SUBSCRIPTION_ID`
 
-Optional identity setting:
-- `AZURE_CLIENT_OBJECT_ID` (recommended when Microsoft Graph lookup is restricted)
-
 Optional backend overrides:
 - `TF_BACKEND_RESOURCE_GROUP`
 - `TF_BACKEND_STORAGE_ACCOUNT`
@@ -61,14 +58,10 @@ The default location is `eastus`.
 The plan job creates the resource group, Standard LRS StorageV2 account, and
 private blob container when they do not already exist. Shared-key access and
 public blob access are disabled; the workflow and Terraform backend use Entra
-ID/OIDC. The workflow creates an idempotent `Storage Blob Data Contributor`
-assignment for the deployment identity at the state container scope and waits
-for propagation before running `terraform init`. The deployment identity must
-therefore be allowed to create the resource group and storage account and must
-have `Microsoft.Authorization/roleAssignments/write` at the backend scope (for
-example through `Role Based Access Control Administrator`). It does not receive
-broad data access outside the state container. Existing deployments can
-override any default with
+ID/OIDC. The deployment identity therefore needs permission to create the
+resource group and storage account plus the `Storage Blob Data Contributor`
+role at the subscription or backend storage-account scope. Existing
+deployments can override any default with
 `TF_BACKEND_RESOURCE_GROUP`, `TF_BACKEND_STORAGE_ACCOUNT`,
 `TF_BACKEND_CONTAINER`, `TF_STATE_KEY`, and `TF_BACKEND_LOCATION` on the
 selected GitHub Environment. Plan and apply jobs calculate the same values
