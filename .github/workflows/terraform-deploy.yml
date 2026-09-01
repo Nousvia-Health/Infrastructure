@@ -160,24 +160,48 @@ jobs:
       - name: Repair existing workload storage authentication
         shell: bash
         run: |
-          workload_account_id="$(az storage account list \
-            --query "[?name=='${TF_VAR_storage_account_name}'].id | [0]" \
+          workload_resource_group="$(az storage account list \
+            --query "[?name=='${TF_VAR_storage_account_name}'].resourceGroup | [0]" \
             --output tsv \
             --only-show-errors)"
 
-          if [ -n "$workload_account_id" ]; then
-            shared_key_enabled="$(az resource show \
-              --ids "$workload_account_id" \
-              --query properties.allowSharedKeyAccess \
+          if [ -n "$workload_resource_group" ]; then
+            shared_key_enabled="$(az storage account show \
+              --name "$TF_VAR_storage_account_name" \
+              --resource-group "$workload_resource_group" \
+              --query allowSharedKeyAccess \
               --output tsv \
               --only-show-errors)"
 
             if [ "$shared_key_enabled" != "true" ]; then
               echo "Enabling Shared Key compatibility for Azure Files on $TF_VAR_storage_account_name."
-              az resource update \
-                --ids "$workload_account_id" \
-                --set properties.allowSharedKeyAccess=true \
+              az storage account update \
+                --name "$TF_VAR_storage_account_name" \
+                --resource-group "$workload_resource_group" \
+                --allow-shared-key-access true \
                 --only-show-errors > /dev/null
+
+              for attempt in $(seq 1 12); do
+                shared_key_enabled="$(az storage account show \
+                  --name "$TF_VAR_storage_account_name" \
+                  --resource-group "$workload_resource_group" \
+                  --query allowSharedKeyAccess \
+                  --output tsv \
+                  --only-show-errors)"
+
+                if [ "$shared_key_enabled" = "true" ]; then
+                  echo "Shared Key is enabled; waiting 30 seconds for the Storage data plane."
+                  sleep 30
+                  break
+                fi
+
+                if [ "$attempt" -eq 12 ]; then
+                  echo "::error title=Storage authentication update timeout::Shared Key did not become effective on $TF_VAR_storage_account_name."
+                  exit 1
+                fi
+
+                sleep 10
+              done
             fi
           fi
 
@@ -308,6 +332,28 @@ jobs:
             -backend-config="key=$TF_STATE_KEY" \
             -backend-config="use_oidc=true" \
             -backend-config="use_azuread_auth=true"
+
+      - name: Verify workload storage authentication
+        shell: bash
+        run: |
+          workload_resource_group="$(az storage account list \
+            --query "[?name=='${TF_VAR_storage_account_name}'].resourceGroup | [0]" \
+            --output tsv \
+            --only-show-errors)"
+
+          if [ -n "$workload_resource_group" ]; then
+            shared_key_enabled="$(az storage account show \
+              --name "$TF_VAR_storage_account_name" \
+              --resource-group "$workload_resource_group" \
+              --query allowSharedKeyAccess \
+              --output tsv \
+              --only-show-errors)"
+
+            if [ "$shared_key_enabled" != "true" ]; then
+              echo "::error title=Workload storage authentication mismatch::Shared Key must be enabled on $TF_VAR_storage_account_name before applying the saved plan."
+              exit 1
+            fi
+          fi
 
       - name: Select tfvars file if present
         id: tfvars
