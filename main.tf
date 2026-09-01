@@ -98,13 +98,14 @@ module "storage" {
 
   for_each = local.storage_accounts
 
-  location             = coalesce(each.value.location, try(module.resource_group[each.value.resource_group_key].location, ""))
-  resource_group_name  = try(module.resource_group[each.value.resource_group_key].name, "")
-  storage_account_name = each.value.name
-  file_shares          = each.value.file_shares
-  replication_type     = each.value.replication_type
-  tags                 = merge(var.tags, each.value.tags)
-  depends_on           = [terraform_data.composition_validation]
+  location                       = coalesce(each.value.location, try(module.resource_group[each.value.resource_group_key].location, ""))
+  resource_group_name            = try(module.resource_group[each.value.resource_group_key].name, "")
+  storage_account_name           = each.value.name
+  file_shares                    = each.value.file_shares
+  replication_type               = each.value.replication_type
+  default_share_level_permission = each.value.default_share_level_permission
+  tags                           = merge(var.tags, each.value.tags)
+  depends_on                     = [terraform_data.composition_validation]
 }
 
 module "private_endpoint" {

@@ -18,7 +18,18 @@ variable "file_shares" {
   type = map(object({
     name     = string
     quota_gb = number
+    role_assignments = optional(map(object({
+      principal_id         = string
+      role_definition_name = optional(string, "Storage File Data SMB Share Contributor")
+      principal_type       = optional(string)
+    })), {})
   }))
+}
+
+variable "default_share_level_permission" {
+  description = "Default SMB permission for all authenticated identities. Use None with explicit RBAC assignments."
+  type        = string
+  default     = "None"
 }
 
 variable "replication_type" {

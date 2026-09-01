@@ -33,10 +33,18 @@ storage_accounts = {
     resource_group_key = "platform"
     name               = "replacewithuniquestorage"
     replication_type   = "LRS"
+    default_share_level_permission = "None"
     file_shares = {
       shared = {
         name     = "shared"
         quota_gb = 100
+        role_assignments = {
+          # users = {
+          #   principal_id         = "replace-with-entra-group-object-id"
+          #   principal_type       = "Group"
+          #   role_definition_name = "Storage File Data SMB Share Contributor"
+          # }
+        }
       }
     }
   }

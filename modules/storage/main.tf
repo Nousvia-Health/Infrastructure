@@ -12,6 +12,11 @@ resource "azurerm_storage_account" "this" {
   # AzureRM uses Shared Key for Azure Files data-plane operations.
   shared_access_key_enabled = true
 
+  azure_files_authentication {
+    directory_type                 = "AADKERB"
+    default_share_level_permission = var.default_share_level_permission
+  }
+
   tags = var.tags
 }
 
@@ -20,4 +25,22 @@ resource "azurerm_storage_share" "this" {
   name               = each.value.name
   storage_account_id = azurerm_storage_account.this.id
   quota              = each.value.quota_gb
+}
+
+locals {
+  file_share_role_assignments = merge([
+    for share_key, share in var.file_shares : {
+      for assignment_key, assignment in share.role_assignments :
+      "${share_key}.${assignment_key}" => merge(assignment, { share_key = share_key })
+    }
+  ]...)
+}
+
+resource "azurerm_role_assignment" "file_share" {
+  for_each = local.file_share_role_assignments
+
+  scope                = azurerm_storage_share.this[each.value.share_key].rbac_scope_id
+  role_definition_name = each.value.role_definition_name
+  principal_id         = each.value.principal_id
+  principal_type       = each.value.principal_type
 }

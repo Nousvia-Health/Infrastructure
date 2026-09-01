@@ -23,13 +23,15 @@ locals {
 
   storage_accounts = coalesce(var.storage_accounts, {
     storage = {
-      resource_group_key = "deployment"
-      name               = var.storage_account_name
-      replication_type   = var.storage_account_replication_type
+      resource_group_key             = "deployment"
+      name                           = var.storage_account_name
+      replication_type               = var.storage_account_replication_type
+      default_share_level_permission = var.azure_files_default_share_level_permission
       file_shares = {
         shared = {
-          name     = coalesce(var.file_share_name, "shared")
-          quota_gb = coalesce(var.file_share_quota_gb, 100)
+          name             = coalesce(var.file_share_name, "shared")
+          quota_gb         = coalesce(var.file_share_quota_gb, 100)
+          role_assignments = var.file_share_role_assignments
         }
       }
       location = null

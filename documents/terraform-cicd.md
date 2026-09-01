@@ -46,6 +46,8 @@ Optional backend overrides:
 - `TF_STATE_KEY`
 - `TF_BACKEND_LOCATION`
 - `TF_WORKLOAD_STORAGE_ACCOUNT` (optional globally unique workload account name)
+- `TF_AZURE_FILES_DEFAULT_SHARE_LEVEL_PERMISSION` (defaults to `None`)
+- `TF_FILE_SHARE_ROLE_ASSIGNMENTS` (JSON map of Entra principal assignments)
 - `TF_VAR_FILE` (optional for environments using a specific tfvars file)
 
 The deployment workflow derives an Azure-standard backend name when backend
@@ -79,6 +81,25 @@ provider uses Shared Key for Azure Files data-plane operations. The deployment
 repairs a partially created account through Azure Resource Manager before
 planning. This does not change the Terraform state backend, which continues to
 use OIDC and Entra ID authentication.
+
+Azure Files SMB identity authentication uses Microsoft Entra Kerberos. The
+storage account default share-level permission is `None`; configure explicit
+`role_assignments` under each `file_shares` entry using Entra object IDs and
+least-privilege Azure Files SMB roles. Creating these assignments requires the
+deployment identity to have `Microsoft.Authorization/roleAssignments/write` at
+the file-share scope. Tenant admin consent, cloud-only group support where
+applicable, client Kerberos configuration, and NTFS ACLs are separate Entra and
+client prerequisites not created by this Terraform deployment.
+
+For the legacy single-share deployment, configure explicit access as a GitHub
+Environment variable such as:
+
+```json
+{"users":{"principal_id":"00000000-0000-0000-0000-000000000000","principal_type":"Group","role_definition_name":"Storage File Data SMB Share Contributor"}}
+```
+
+Store that JSON in `TF_FILE_SHARE_ROLE_ASSIGNMENTS`, replacing the example with
+the Entra group object ID. Prefer a group over individual user assignments.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 

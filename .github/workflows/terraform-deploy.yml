@@ -53,6 +53,8 @@ jobs:
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
       TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
       TF_WORKLOAD_STORAGE_ACCOUNT: ${{ vars.TF_WORKLOAD_STORAGE_ACCOUNT }}
+      TF_VAR_azure_files_default_share_level_permission: ${{ vars.TF_AZURE_FILES_DEFAULT_SHARE_LEVEL_PERMISSION || 'None' }}
+      TF_VAR_file_share_role_assignments: ${{ vars.TF_FILE_SHARE_ROLE_ASSIGNMENTS || '{}' }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:
@@ -260,6 +262,8 @@ jobs:
       TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
       TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
       TF_WORKLOAD_STORAGE_ACCOUNT: ${{ vars.TF_WORKLOAD_STORAGE_ACCOUNT }}
+      TF_VAR_azure_files_default_share_level_permission: ${{ vars.TF_AZURE_FILES_DEFAULT_SHARE_LEVEL_PERMISSION || 'None' }}
+      TF_VAR_file_share_role_assignments: ${{ vars.TF_FILE_SHARE_ROLE_ASSIGNMENTS || '{}' }}
       TF_VAR_FILE: ${{ github.event.inputs.tfvars_file || 'config/dev.tfvars' }}
 
     steps:

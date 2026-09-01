@@ -56,6 +56,47 @@ variable "file_share_quota_gb" {
   }
 }
 
+variable "azure_files_default_share_level_permission" {
+  description = "Default Azure Files SMB permission for authenticated identities. Keep None when using explicit share-level role assignments."
+  type        = string
+  default     = "None"
+
+  validation {
+    condition = contains([
+      "None",
+      "StorageFileDataSmbShareReader",
+      "StorageFileDataSmbShareContributor",
+      "StorageFileDataSmbShareElevatedContributor"
+    ], var.azure_files_default_share_level_permission)
+    error_message = "azure_files_default_share_level_permission must be None or a supported Azure Files SMB share permission."
+  }
+}
+
+variable "file_share_role_assignments" {
+  description = "Share-level Azure RBAC assignments used by the legacy singular file share."
+  type = map(object({
+    principal_id         = string
+    role_definition_name = optional(string, "Storage File Data SMB Share Contributor")
+    principal_type       = optional(string)
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for assignment in values(var.file_share_role_assignments) :
+      can(regex("^[0-9a-fA-F-]{36}$", assignment.principal_id)) &&
+      contains([
+        "Storage File Data SMB Share Reader",
+        "Storage File Data SMB Share Contributor",
+        "Storage File Data SMB Share Elevated Contributor",
+        "Storage File Data SMB Admin"
+      ], assignment.role_definition_name) &&
+      (assignment.principal_type == null || contains(["User", "Group", "ServicePrincipal"], assignment.principal_type))
+    ])
+    error_message = "Each file share role assignment must use a valid principal object ID, supported Azure Files SMB role, and optional User, Group, or ServicePrincipal type."
+  }
+}
+
 variable "vnet_address_space" {
   description = "Address space for the VNet."
   type        = list(string)
@@ -148,14 +189,20 @@ variable "networks" {
 variable "storage_accounts" {
   description = "Storage accounts keyed by logical name, each with one or more Azure Files shares."
   type = map(object({
-    resource_group_key = string
-    name               = string
-    replication_type   = string
-    location           = optional(string)
-    tags               = optional(map(string), {})
+    resource_group_key             = string
+    name                           = string
+    replication_type               = string
+    location                       = optional(string)
+    tags                           = optional(map(string), {})
+    default_share_level_permission = optional(string, "None")
     file_shares = map(object({
       name     = string
       quota_gb = number
+      role_assignments = optional(map(object({
+        principal_id         = string
+        role_definition_name = optional(string, "Storage File Data SMB Share Contributor")
+        principal_type       = optional(string)
+      })), {})
     }))
   }))
   default  = null
@@ -166,10 +213,27 @@ variable "storage_accounts" {
       for account in values(var.storage_accounts) :
       can(regex("^[a-z0-9]{3,24}$", account.name)) && trimspace(account.resource_group_key) != "" &&
       contains(["LRS", "ZRS", "GRS", "GZRS"], account.replication_type) &&
+      contains([
+        "None",
+        "StorageFileDataSmbShareReader",
+        "StorageFileDataSmbShareContributor",
+        "StorageFileDataSmbShareElevatedContributor"
+      ], account.default_share_level_permission) &&
       length(account.file_shares) > 0 &&
       alltrue([
         for share in values(account.file_shares) :
-        can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", share.name)) && trimspace(share.name) == share.name && floor(share.quota_gb) == share.quota_gb && share.quota_gb >= 1 && share.quota_gb <= 102400
+        can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", share.name)) && trimspace(share.name) == share.name && floor(share.quota_gb) == share.quota_gb && share.quota_gb >= 1 && share.quota_gb <= 102400 &&
+        alltrue([
+          for assignment in values(share.role_assignments) :
+          can(regex("^[0-9a-fA-F-]{36}$", assignment.principal_id)) &&
+          contains([
+            "Storage File Data SMB Share Reader",
+            "Storage File Data SMB Share Contributor",
+            "Storage File Data SMB Share Elevated Contributor",
+            "Storage File Data SMB Admin"
+          ], assignment.role_definition_name) &&
+          (assignment.principal_type == null || contains(["User", "Group", "ServicePrincipal"], assignment.principal_type))
+        ])
       ])
       && length(distinct([for share in values(account.file_shares) : share.name])) == length(account.file_shares)
       && alltrue([for value in values(account.tags) : trimspace(value) != ""])
