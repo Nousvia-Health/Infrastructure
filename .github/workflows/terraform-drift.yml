@@ -25,6 +25,11 @@ jobs:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_BACKEND_RESOURCE_GROUP: ${{ vars.TF_BACKEND_RESOURCE_GROUP }}
+      TF_BACKEND_STORAGE_ACCOUNT: ${{ vars.TF_BACKEND_STORAGE_ACCOUNT }}
+      TF_BACKEND_CONTAINER: ${{ vars.TF_BACKEND_CONTAINER }}
+      TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+      TF_BACKEND_LOCATION: ${{ vars.TF_BACKEND_LOCATION || 'eastus' }}
       TF_VAR_FILE: ${{ vars.TF_VAR_FILE || 'config/dev.tfvars' }}
 
     steps:
@@ -43,14 +48,33 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Configure backend names
+        shell: bash
+        run: |
+          deploy_environment="${{ vars.TF_STATE_ENVIRONMENT || 'dev' }}"
+          subscription_suffix="$(printf '%s' "$ARM_SUBSCRIPTION_ID" | tr -d '-' | cut -c1-9 | tr '[:upper:]' '[:lower:]')"
+          backend_resource_group="${TF_BACKEND_RESOURCE_GROUP:-rg-nousvia-tfstate-${deploy_environment}}"
+          backend_storage_account="${TF_BACKEND_STORAGE_ACCOUNT:-stnousviatf${deploy_environment}${subscription_suffix}}"
+          backend_container="${TF_BACKEND_CONTAINER:-tfstate}"
+          state_key="${TF_STATE_KEY:-${deploy_environment}/infrastructure.tfstate}"
+
+          {
+            echo "TF_BACKEND_RESOURCE_GROUP=$backend_resource_group"
+            echo "TF_BACKEND_STORAGE_ACCOUNT=$backend_storage_account"
+            echo "TF_BACKEND_CONTAINER=$backend_container"
+            echo "TF_STATE_KEY=$state_key"
+          } >> "$GITHUB_ENV"
+
       - name: Terraform init
         shell: bash
         run: |
-          if [ -f "backend.hcl" ]; then
-            terraform init -input=false -backend-config=backend.hcl
-          else
-            terraform init -input=false -backend=false
-          fi
+          terraform init -input=false -reconfigure \
+            -backend-config="resource_group_name=$TF_BACKEND_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TF_BACKEND_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TF_BACKEND_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Terraform refresh-only plan
         shell: bash

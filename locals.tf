@@ -21,7 +21,7 @@ locals {
     }
   })
 
-  storage_accounts = coalesce(var.storage_accounts, {
+  storage_accounts = var.storage_accounts == null ? {
     storage = {
       resource_group_key             = "deployment"
       name                           = var.storage_account_name
@@ -37,7 +37,18 @@ locals {
       location = null
       tags     = {}
     }
-  })
+    } : {
+    for account_key, account in var.storage_accounts : account_key => merge(account, {
+      file_shares = {
+        for share_key, share in account.file_shares : share_key => merge(share, {
+          role_assignments = merge(
+            share.role_assignments,
+            try(var.storage_account_role_assignments[account_key][share_key], {})
+          )
+        })
+      }
+    })
+  }
 
   private_endpoints = coalesce(var.private_endpoints, {
     storage = {

@@ -97,6 +97,33 @@ variable "file_share_role_assignments" {
   }
 }
 
+variable "storage_account_role_assignments" {
+  description = "Optional keyed RBAC overrides for map-mode Azure Files shares, organized by storage account key and share key."
+  type = map(map(object({
+    principal_id         = string
+    role_definition_name = optional(string, "Storage File Data SMB Share Contributor")
+    principal_type       = optional(string)
+  })))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for shares in values(var.storage_account_role_assignments) : alltrue([
+        for assignment in values(shares) :
+        can(regex("^[0-9a-fA-F-]{36}$", assignment.principal_id)) &&
+        contains([
+          "Storage File Data SMB Share Reader",
+          "Storage File Data SMB Share Contributor",
+          "Storage File Data SMB Share Elevated Contributor",
+          "Storage File Data SMB Admin"
+        ], assignment.role_definition_name) &&
+        (assignment.principal_type == null || contains(["User", "Group", "ServicePrincipal"], assignment.principal_type))
+      ])
+    ])
+    error_message = "Each keyed storage account role assignment must use a valid principal object ID, supported Azure Files SMB role, and optional User, Group, or ServicePrincipal type."
+  }
+}
+
 variable "vnet_address_space" {
   description = "Address space for the VNet."
   type        = list(string)

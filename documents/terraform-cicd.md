@@ -45,9 +45,11 @@ Optional backend overrides:
 - `TF_BACKEND_CONTAINER`
 - `TF_STATE_KEY`
 - `TF_BACKEND_LOCATION`
+- `TF_STATE_ENVIRONMENT` (drift workflow state environment, defaults to `dev`)
 - `TF_WORKLOAD_STORAGE_ACCOUNT` (optional globally unique workload account name)
 - `TF_AZURE_FILES_DEFAULT_SHARE_LEVEL_PERMISSION` (defaults to `None`)
 - `TF_FILE_SHARE_ROLE_ASSIGNMENTS` (JSON map of Entra principal assignments)
+- `TF_STORAGE_ACCOUNT_ROLE_ASSIGNMENTS` (optional JSON object keyed by storage account and share keys for map-mode deployments)
 - `TF_VAR_FILE` (optional for environments using a specific tfvars file)
 
 The deployment workflow derives an Azure-standard backend name when backend
@@ -101,14 +103,25 @@ Environment variable such as:
 Store that JSON in `TF_FILE_SHARE_ROLE_ASSIGNMENTS`, replacing the example with
 the Entra group object ID. Prefer a group over individual user assignments.
 
+For keyed map-mode deployments, use `TF_STORAGE_ACCOUNT_ROLE_ASSIGNMENTS` with
+the storage account and share keys from the selected tfvars file:
+
+```json
+{"files":{"shared":{"principal_id":"00000000-0000-0000-0000-000000000000","principal_type":"Group","role_definition_name":"Storage File Data SMB Share Contributor"}}}
+```
+
+CI assignments override assignments with the same storage account and share
+keys in the tfvars file.
+
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
 ## Backend and state
 
 This repository does not ship a local Azure Storage backend configuration. The
-deployment workflow derives or accepts overrides for the backend configuration
-and initializes it independently in each fresh runner. The downloaded plan is
-checked before apply, and `terraform apply` uses that saved plan directly;
+deployment and drift workflows derive or accept overrides for the backend
+configuration and initialize it independently in each fresh runner. The drift
+workflow expects the backend to already exist and does not create resources.
+The downloaded plan is checked before apply, and `terraform apply` uses that saved plan directly;
 Terraform variables are already stored in the plan and are not supplied again.
 
 For production, prefer a dedicated state account and container per environment, with locking enabled and restricted network access.
