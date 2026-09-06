@@ -266,6 +266,46 @@ variable "private_endpoints" {
   }
 }
 
+variable "databricks" {
+  description = "Optional private Azure Databricks workspace and its dedicated network and storage resources."
+  type = object({
+    resource_group_name          = string
+    location                     = string
+    workspace_name               = string
+    managed_resource_group_name  = string
+    vnet_name                    = string
+    vnet_address_space           = list(string)
+    public_subnet_name           = string
+    public_subnet_cidr           = string
+    private_subnet_name          = string
+    private_subnet_cidr          = string
+    private_endpoint_subnet_name = string
+    private_endpoint_subnet_cidr = string
+    storage_account_name         = string
+    storage_replication_type     = optional(string, "LRS")
+    tags                         = optional(map(string), {})
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition = var.databricks == null ? true : (
+      trimspace(var.databricks.resource_group_name) != "" &&
+      var.databricks.location == "eastus2" &&
+      can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$", var.databricks.workspace_name)) &&
+      can(regex("^[^<>%&\\\\?/]{1,90}$", var.databricks.managed_resource_group_name)) &&
+      length(var.databricks.vnet_address_space) > 0 &&
+      alltrue([for cidr in var.databricks.vnet_address_space : can(cidrhost(cidr, 0))]) &&
+      can(cidrhost(var.databricks.public_subnet_cidr, 0)) &&
+      can(cidrhost(var.databricks.private_subnet_cidr, 0)) &&
+      can(cidrhost(var.databricks.private_endpoint_subnet_cidr, 0)) &&
+      can(regex("^[a-z0-9]{3,24}$", var.databricks.storage_account_name)) &&
+      contains(["LRS", "ZRS", "GRS", "GZRS"], var.databricks.storage_replication_type)
+    )
+    error_message = "Databricks must use eastus2 and valid workspace, managed resource group, CIDR, storage account, and replication settings."
+  }
+}
+
 variable "tags" {
   description = "Required ownership and governance tags."
   type        = map(string)

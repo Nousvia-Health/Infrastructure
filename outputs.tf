@@ -60,3 +60,18 @@ output "private_endpoint_ips" {
   description = "Private endpoint IPs keyed by logical endpoint name."
   value       = { for key, endpoint in module.private_endpoint : key => endpoint.private_ip_address }
 }
+
+output "databricks_workspace_id" {
+  description = "Private Azure Databricks workspace ID, or null when databricks is not configured."
+  value       = try(module.databricks[0].workspace_id, null)
+}
+
+output "databricks_workspace_url" {
+  description = "Azure Databricks workspace URL, or null when databricks is not configured."
+  value       = try(module.databricks[0].workspace_url, null)
+}
+
+output "databricks_storage_account_id" {
+  description = "ADLS Gen2 storage account ID for Databricks external storage."
+  value       = try(module.databricks[0].storage_account_id, null)
+}

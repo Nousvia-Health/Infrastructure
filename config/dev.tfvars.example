@@ -67,3 +67,20 @@ tags = {
   data_classification = "internal"
   managed_by          = "terraform"
 }
+
+databricks = {
+  resource_group_name          = "rg-nousviahealth-databricks-dev"
+  location                     = "eastus2"
+  workspace_name               = "nousviahealth-dev"
+  managed_resource_group_name  = "rg-nousviahealth-databricks-managed-dev"
+  vnet_name                    = "vnet-nousviahealth-databricks-dev"
+  vnet_address_space           = ["10.40.0.0/16"]
+  public_subnet_name           = "snet-databricks-public"
+  public_subnet_cidr           = "10.40.1.0/24"
+  private_subnet_name           = "snet-databricks-private"
+  private_subnet_cidr           = "10.40.2.0/24"
+  private_endpoint_subnet_name  = "snet-private-endpoints"
+  private_endpoint_subnet_cidr  = "10.40.3.0/24"
+  storage_account_name          = "nousviahealthdbxdev"
+  storage_replication_type      = "LRS"
+}

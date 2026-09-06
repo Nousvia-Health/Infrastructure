@@ -124,6 +124,27 @@ module "private_endpoint" {
   depends_on            = [terraform_data.composition_validation]
 }
 
+module "databricks" {
+  source = "./modules/databricks"
+  count  = var.databricks == null ? 0 : 1
+
+  resource_group_name          = var.databricks.resource_group_name
+  location                     = var.databricks.location
+  workspace_name               = var.databricks.workspace_name
+  managed_resource_group_name  = var.databricks.managed_resource_group_name
+  vnet_name                    = var.databricks.vnet_name
+  vnet_address_space           = var.databricks.vnet_address_space
+  public_subnet_name           = var.databricks.public_subnet_name
+  public_subnet_cidr           = var.databricks.public_subnet_cidr
+  private_subnet_name          = var.databricks.private_subnet_name
+  private_subnet_cidr          = var.databricks.private_subnet_cidr
+  private_endpoint_subnet_name = var.databricks.private_endpoint_subnet_name
+  private_endpoint_subnet_cidr = var.databricks.private_endpoint_subnet_cidr
+  storage_account_name         = var.databricks.storage_account_name
+  storage_replication_type     = var.databricks.storage_replication_type
+  tags                         = merge(var.tags, var.databricks.tags)
+}
+
 moved {
   from = module.resource_group
   to   = module.resource_group["deployment"]
