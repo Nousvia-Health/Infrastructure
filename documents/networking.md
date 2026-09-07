@@ -1,140 +1,183 @@
 ---
-title: Azure Fileshare Private Networking Design
-status: Proposed
+title: NousviaHealth Dev Networking Design
+status: Current dev adoption
 ---
 
-> **Superseded for live dev adoption:** The active topology is documented in [adoption.md](adoption.md). This document's original Azure Files baseline is retained as historical design context; its public-access and NSG defaults do not describe the adopted Databricks environment.
+# Overview
 
-# Executive Summary
+This document describes the Terraform-managed networking topology for the
+NousviaHealth development environment in `eastus2`. The configuration adopts
+existing Azure resources; it is not a greenfield network deployment.
 
-This design provisions one or more Azure Storage Accounts and Azure Files shares reachable through Private Endpoints in reusable dedicated VNet subnets. Public network access is disabled, one shared private DNS zone is owned by each network, and an NSG limits each private endpoint subnet to Azure Virtual Network traffic. The Terraform root is an environment composition boundary using keyed maps, with explicit resource-group ownership for each resource family.
+Subscription: `sub-nousviahealth-dev`
 
-## Scope
+Virtual network: `vnet-nousviahealth-dev-eus2`
 
-Included:
+Address space: `10.0.0.0/16`
 
-- Resource group.
-- VNet and dedicated private endpoint subnet.
-- NSG associated with the private endpoint subnet.
-- Storage Account and Azure Files share.
-- Storage private endpoint for the `file` subresource.
-- Private DNS zone, VNet link, and private DNS zone group.
+Network resource group: `rg-nousviahealth-network-dev-eus2`
 
-Excluded until requirements are confirmed:
+The live environment uses customer-managed private endpoints and private DNS
+for Storage and Key Vault. Databricks owns its generated NSG rules, delegated
+subnet ranges, managed resource group, private endpoint NICs, and network intent
+policies. Terraform reads those Databricks-managed dependencies but does not
+independently manage them.
 
-- Hub-and-spoke or hybrid connectivity to on-premises networks.
-- Azure Firewall, VPN/ExpressRoute, Bastion, and centralized egress.
-- Entra Kerberos, Azure AD Domain Services, or Windows identity-based SMB authorization.
-- Backup vault, cross-region replication, customer-managed keys, and diagnostic workspace.
-
-# Requirements and Assumptions
-
-| Category | Requirement or assumption | State |
-|---|---|---|
-| Workload | Azure Files share accessed by workloads connected to the VNet | Assumption |
-| Network | Private Endpoint is the only intended data-plane path | Explicit design decision |
-| Exposure | Storage public network access is explicitly configurable; live dev remains enabled | Dev adoption exception |
-| Addressing | Default VNet is `10.20.0.0/16`; private endpoint subnet is `10.20.1.0/24`; subnets must be contained and non-overlapping | Configurable assumption |
-| Region | `eastus` default; must be confirmed for production | Configurable assumption |
-| Storage | Standard LRS is the live dev baseline; ZRS/GZRS requires production RTO/RPO approval | Dev-only baseline |
-| Share | 100 GiB default quota; adjust for workload and cost | Configurable assumption |
-| Identity | Terraform uses the authenticated Azure identity; no credentials are stored in code | Constraint |
-| State | Production state should use an Azure Storage backend with locking | Operational requirement |
-| Resilience | Single-region baseline; zone/region DR is not claimed by this design | Open decision |
-| Ownership | Owner, cost center, and data classification are supplied through tags; resource group keys are explicit | Required input |
-
-Production decisions still required: subscription and resource group ownership boundary, region pair, RTO/RPO, expected throughput and capacity, client operating systems, SMB/NFS protocol needs, compliance classification, backup retention, and whether identity-based authorization is mandatory.
-
-# Architecture
+# Network Topology
 
 ```mermaid
 flowchart LR
-	Composition[Environment composition] --> RG[Resource groups]
-	Composition --> Net[Reusable network]
-	Composition --> Storage[Storage accounts and shares]
-	Composition --> Endpoint[Private endpoints]
-	Client[Workload in VNet] -->|SMB over TCP 445| PE[Private Endpoint subnet\nPrivate IP]
-	PE -->|Private Link| Files[Azure Storage Account\nAzure Files share]
-	Client -->|DNS query| DNS[privatelink.file.core.windows.net]
-	DNS -->|VNet link| PE
+    DBX[Databricks workspace\nVNet injected, no public IP]
+    VNET[VNet\n10.0.0.0/16]
+    DBXHOST[Databricks host subnet\nDatabricks delegated]
+    DBXCONT[Databricks container subnet\nDatabricks delegated]
+    PE[Private endpoint subnet\n10.0.32.0/24]
+    INT[Integration subnet\n10.0.33.0/24]
+    BLOB[Storage blob private endpoint]
+    DFS[Storage DFS private endpoint]
+    KV[Key Vault private endpoint]
+    DNS[Private DNS zones\nBlob, DFS, Key Vault]
+    STORAGE[ADLS Gen2 storage]
+    VAULT[Key Vault]
+    NAT[Standard NAT Gateway\nnot attached to a subnet]
+
+    VNET --> DBXHOST
+    VNET --> DBXCONT
+    VNET --> PE
+    VNET --> INT
+    DBX --> DBXHOST
+    DBX --> DBXCONT
+    PE --> BLOB
+    PE --> DFS
+    PE --> KV
+    BLOB --> STORAGE
+    DFS --> STORAGE
+    KV --> VAULT
+    DNS -. VNet links .-> VNET
+    NAT -. optional, not configured in dev .-> VNET
 ```
 
-## Resource Inventory
+# Subnets
 
-| Resource | Terraform resource | Purpose | Network exposure |
+| Subnet | Addressing | Terraform ownership | Purpose |
 |---|---|---|---|
-| Resource group | `azurerm_resource_group` | Lifecycle boundary | Azure control plane |
-| VNet | `azurerm_virtual_network` | Private address space | No public ingress |
-| Private endpoint subnet | `azurerm_subnet` | Hosts the storage private endpoint | Private only |
-| NSG | `azurerm_network_security_group` | Subnet traffic baseline | Allows VNet traffic; denies other inbound traffic |
-| Storage account | `azurerm_storage_account` | Azure Files data service | Public access disabled |
-| File share | `azurerm_storage_share` | Shared file data | Via private endpoint |
-| Private endpoint | `azurerm_private_endpoint` | Private Link connection to Files | Private IP in VNet |
-| Private DNS zone | `azurerm_private_dns_zone` | Resolves Files FQDN to private IP | One shared zone per network, VNet linked |
-| DNS zone group | `azurerm_private_dns_zone_group` | Associates endpoint and DNS zone | Private Link |
+| `snet-private-endpoints-dev-eus2` | `10.0.32.0/24` | Terraform | Hosts Storage and Key Vault private endpoints. Private endpoint network policies are disabled. |
+| `snet-integration-dev-eus2` | `10.0.33.0/24` | Terraform | Reserved integration subnet. Private endpoint network policies are disabled. |
+| `snet-dbx-host-dev-eus2` | Azure-managed live range | Databricks | Delegated to `Microsoft.Databricks/workspaces`; associated with the Databricks-generated NSG. |
+| `snet-dbx-container-dev-eus2` | Azure-managed live range | Databricks | Delegated to `Microsoft.Databricks/workspaces`; associated with the Databricks-generated NSG. |
 
-## Network Plan
+The Terraform network module manages the VNet and the two explicitly addressed
+subnets. It reads the Databricks delegated subnets as data sources so their
+platform-managed address ranges and associations are not overwritten.
 
-| Element | CIDR or value | Intent |
+All Terraform-managed subnets set `default_outbound_access_enabled = false`.
+The live configuration does not set `nat_gateway_subnet_name`, so Terraform
+does not attach the NAT Gateway to any subnet.
+
+# Network Resources
+
+| Resource | Name | Terraform behavior |
 |---|---|---|
-| VNet | `10.20.0.0/16` | Address space; configurable |
-| Private endpoint subnet | `10.20.1.0/24` | Dedicated subnet for Private Endpoints |
-| Private DNS zone | `privatelink.file.core.windows.net` | Azure Files Private Link name resolution; unique per resource group in this implementation |
-| Protocol | TCP 445 | SMB client access; enforce client-side egress policy as needed |
+| Virtual network | `vnet-nousviahealth-dev-eus2` | Imported and managed |
+| Network security group | `nsg-nousviahealth-dbx-dev-eus2` | Imported; marked `platform_managed`; rules and tags ignored |
+| NAT Gateway | `rg-nousviahealth-network-dev-eus2` | Imported; Standard SKU, zone `1`, four-minute idle timeout |
+| Public IP | `pip-nousviahealth-nat-dev-eus2` | Imported; Standard Regional, static IPv4, zones `1`, `2`, `3` |
+| NAT/Public IP association | Existing association | Imported |
+| NAT/subnet association | None in dev | Optional Terraform input, currently `null` |
+| Network Watcher | `NetworkWatcher_eastus2` | Imported in `NetworkWatcherRG` |
 
-The subnet sets `private_endpoint_network_policies = "Disabled"`, which is required for Private Endpoint network interface behavior. The NSG allows traffic originating within the VNet and denies other inbound traffic. Multiple endpoints can use the same network and DNS zone. A broader workload subnet and route design must be added when this baseline is integrated into an existing hub-and-spoke network.
+The Databricks-generated NSG `databricksnsgwtzfq4y2p7vjy` is outside the
+Terraform ownership boundary. Its required rules allow Databricks worker
+communication and outbound access to Azure Databricks, SQL, Storage, and
+Event Hubs. Terraform must not replace those rules or subnet associations.
 
-## Communication Matrix
+# Private DNS
 
-| Source | Destination | Protocol/port | Direction | Trust boundary | Control |
-|---|---|---|---|---|---|
-| VNet workload | Storage private endpoint | SMB/TCP 445 | Outbound | Workload to private data plane | NSG, private endpoint, storage public access disabled |
-| VNet workload | Private DNS zone | DNS TCP/UDP 53 | Outbound | Workload to platform DNS | Azure VNet DNS and linked private zone |
-| Terraform identity | Azure Resource Manager | HTTPS/443 | Outbound | Deployment control plane | Entra authentication and least-privilege RBAC |
+The network resource group owns and links these zones to the VNet:
 
-# Security Model
+| Zone | Link name | Used by |
+|---|---|---|
+| `privatelink.blob.core.windows.net` | `link-nousviahealth-dev-eus2` | Storage Blob private endpoint |
+| `privatelink.dfs.core.windows.net` | `vnet-nousviahealth-dev-eus2` | ADLS Gen2 DFS private endpoint |
+| `privatelink.vaultcore.azure.net` | `vnet-nousviahealth-dev-eus2` | Key Vault private endpoint |
 
-- Authenticate Terraform with Azure CLI, workload identity federation, or managed identity. Never place client secrets, storage keys, or connection strings in Terraform or committed variable files.
-- Disable storage public network access and require HTTPS/TLS 1.2.
-- Disable anonymous nested-item public access. Shared Key remains enabled for Terraform's Azure Files data-plane operations; restrict key access through RBAC and never expose account keys in workflow output. Before client onboarding, configure Entra-based Azure Files authorization for SMB users or workloads where supported.
-- Azure Files uses Microsoft Entra Kerberos (`AADKERB`) for SMB identity authentication. Default share permission remains `None`; assign `Storage File Data SMB Share Reader`, `Contributor`, `Elevated Contributor`, or `Admin` to explicit Entra principals at the individual share scope.
-- Complete the Microsoft Entra Kerberos tenant prerequisites before client onboarding: grant tenant admin consent to the Azure Storage service principal, enable cloud-only group support when applicable, configure Conditional Access exclusions required by Azure Files, and configure Entra-joined clients to request Kerberos tickets.
-- Use RBAC for deployment and data access. Scope roles to the resource group or individual storage account; avoid subscription-wide Owner assignments.
-- Keep `*.tfvars`, state, plans, and generated credentials out of source control. Use remote state with locking for shared environments.
-- Add Azure Policy, Defender for Storage, diagnostic settings, and Key Vault integration as platform requirements for production.
+All links have registration disabled. Azure-managed A records are created by
+the private endpoint DNS zone groups and are not declared as standalone
+Terraform records.
 
-# Reliability, Operations, and Cost
+DNS forwarding from hub, peered, on-premises, or other client networks is not
+configured by this repository. Any consumer outside this VNet requires an
+approved DNS forwarding or Private Resolver design.
 
-- The default Standard LRS account is a cost-conscious baseline, not a disaster recovery guarantee. Select ZRS/GRS/GZRS after RTO/RPO and region requirements are known.
-- Set share quota from measured capacity and growth; monitor used capacity and transaction metrics.
-- Configure diagnostic settings to Log Analytics and alerts for availability, capacity, authorization failures, and throttling before production use.
-- A private endpoint incurs networking cost; it is retained because the design prioritizes reduced public exposure and controlled access.
-- Recovery procedures must include Terraform state recovery, storage data protection/backup, and private DNS validation.
+# Private Endpoints
 
-# Terraform Implementation
+All endpoints use `snet-private-endpoints-dev-eus2` and are approved in Azure.
 
-The root Terraform composition and module folders in this repository implement this document:
+| Endpoint | Resource group | Target | Group |
+|---|---|---|---|
+| `pep-stnvhdbxdev-blob-eus2` | `rg-nousviahealth-data-dev-eus2` | `stnvhdbxdevuse2` | `blob` |
+| `pep-stnvhdbxdev-dfs-eus2` | `rg-nousviahealth-network-dev-eus2` | `stnvhdbxdevuse2` | `dfs` |
+| `pep-kv-nvh-dbx-dev-eus2` | `rg-nousviahealth-network-dev-eus2` | `kv-nvh-dbx-dev-eus2` | `vault` |
 
-- `versions.tf`: AzureRM provider and Terraform constraints.
-- `variables.tf`: validated legacy inputs and keyed environment composition maps.
-- `locals.tf`: compatibility translation from singular inputs to keyed maps.
-- `main.tf`: root composition, cross-reference checks, and state address moves.
-- `modules/resource-group/`: resource group module.
-- `modules/network/`: VNet, private endpoint subnet, NSG, and subnet association module.
-- `modules/storage/`: storage account and Azure Files share module.
-- `modules/private-endpoint/`: private endpoint and DNS zone group module; the zone itself is network-owned and shared.
-- `outputs.tf`: compatibility outputs plus keyed resource group, network, subnet, storage account, share URL, and endpoint IDs/IPs. Singular compatibility share output selects the first logical share by sorted key.
-- `config/<environment>.tfvars.example`: safe environment configuration templates; copy one to an ignored `.tfvars` file and review before use.
+Terraform preserves the existing private service connection names and
+Azure-generated NIC names. The NICs are platform-generated children and are
+not declared as independent Terraform resources.
 
-Validation workflow:
+# Communication Matrix
 
-```text
-terraform fmt -check
-terraform init -backend=false
-terraform validate
-terraform plan -out=tfplan
-```
+| Source | Destination | Protocol/port | Direction | Control |
+|---|---|---|---|---|
+| Databricks host/container subnets | Azure Databricks control plane | TCP `443`, `3306`, `8443-8451` | Outbound | Databricks-generated NSG |
+| Databricks host/container subnets | Azure Storage | TCP `443` | Outbound | Databricks-generated NSG and private endpoints where applicable |
+| Databricks host/container subnets | Azure SQL | TCP `3306` | Outbound | Databricks-generated NSG |
+| Databricks host/container subnets | Event Hubs | TCP `9093` | Outbound | Databricks-generated NSG |
+| VNet clients | Storage Blob private endpoint | HTTPS `443` | Outbound | Private endpoint and Blob private DNS |
+| VNet clients | Storage DFS private endpoint | HTTPS `443` | Outbound | Private endpoint and DFS private DNS |
+| VNet clients | Key Vault private endpoint | HTTPS `443` | Outbound | Private endpoint and Key Vault private DNS |
+| VNet clients | Azure DNS/private DNS resolution | DNS TCP/UDP `53` | Outbound | Azure VNet DNS and linked private zones |
+| Terraform identity | Azure Resource Manager | HTTPS `443` | Outbound | Entra authentication and scoped RBAC |
 
-Use `-var-file=config/<environment>.tfvars` for every environment. Each environment should use an isolated remote-state key and its own plan/approval boundary. Adding a resource changes only the relevant map entry; adding a new map key creates a new Terraform instance address.
+This repository does not create a firewall, route table, VPN, ExpressRoute,
+Bastion, hub-spoke peering, or centralized egress path.
 
-Review the plan for public exposure, replacement, address changes, RBAC impact, and data loss before any apply. `terraform apply` requires explicit approval and an authenticated Azure subscription context.
+# Security Posture
+
+The supplied dev configuration intentionally preserves the live posture:
+
+- Storage public network access is enabled.
+- Storage shared-key access is enabled.
+- Key Vault public network access is enabled.
+- Key Vault uses RBAC, 90-day soft delete, and no purge protection.
+- Log Analytics ingestion and query public access are enabled.
+- Databricks public network access is enabled, while worker nodes use no public IP.
+- Storage uses Standard LRS.
+- Databricks uses the Trial SKU.
+
+Private endpoints provide private data-plane paths but do not disable public
+access. Production requires an approved hardening plan covering private DNS,
+Databricks control-plane connectivity, Entra/RBAC access, storage replication,
+Key Vault purge protection, diagnostic settings, and client dependencies.
+
+# Terraform Ownership
+
+The root composition is in `main.tf`; live values and resource names are in
+`config/dev.tfvars`. The import manifest is `imports.tf`.
+
+Terraform manages or adopts:
+
+- Customer resource groups and Network Watcher resource group boundary.
+- VNet, explicitly addressed subnets, NAT Gateway, public IP, NAT/IP association,
+  private DNS zones, DNS links, NSG shell, Storage, Key Vault, Log Analytics,
+  access connector, Databricks workspace, and private endpoints.
+
+Terraform deliberately does not independently manage:
+
+- Databricks managed resource group children.
+- Databricks-generated NSG rules and delegated subnet ranges.
+- Private endpoint NICs.
+- Azure network intent policies.
+- Key Vault secrets or storage child data not retrieved during inventory.
+
+Run `terraform plan` only after configuring the approved remote backend and
+review every replacement, public-access change, tag change, RBAC change, and
+network association before approval.
