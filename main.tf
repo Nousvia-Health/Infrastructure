@@ -4,7 +4,7 @@ module "resource_groups" {
 
   name     = each.value.name
   location = each.value.location
-  tags     = each.value.tags
+  tags     = merge(var.common_tags, each.value.tags)
 }
 
 module "network" {
@@ -23,6 +23,7 @@ module "network" {
   nat_gateway_subnet_name     = var.network.nat_gateway_subnet_name
   public_ip_name              = var.network.public_ip_name
   public_ip_tags              = var.network.public_ip_tags
+  common_tags                 = var.common_tags
   nsg_ownership               = var.network.nsg_ownership
   private_dns_zone_link_names = var.network.private_dns_zone_link_names
 }
@@ -36,6 +37,7 @@ module "storage" {
   account_replication_type      = var.storage.account_replication_type
   public_network_access_enabled = var.storage.public_network_access_enabled
   shared_access_key_enabled     = var.storage.shared_access_key_enabled
+  tags                          = var.common_tags
 }
 
 module "access_connector" {
@@ -44,6 +46,7 @@ module "access_connector" {
 
   resource_group_name = var.access_connector.resource_group_name
   name                = var.access_connector.name
+  tags                = merge(var.common_tags, var.access_connector.tags)
 }
 
 module "key_vault" {
@@ -54,6 +57,7 @@ module "key_vault" {
   name                          = var.key_vault.name
   public_network_access_enabled = var.key_vault.public_network_access_enabled
   purge_protection_enabled      = var.key_vault.purge_protection_enabled
+  tags                          = merge(var.common_tags, var.key_vault.tags)
 }
 
 module "monitoring" {
@@ -66,6 +70,7 @@ module "monitoring" {
   internet_ingestion_enabled = var.monitoring.internet_ingestion_enabled
   internet_query_enabled     = var.monitoring.internet_query_enabled
   diagnostic_settings        = var.monitoring.diagnostic_settings
+  tags                       = var.common_tags
 }
 
 module "databricks" {
@@ -83,6 +88,7 @@ module "databricks" {
   generated_resource_ownership  = var.databricks.generated_resource_ownership
   vnet_id                       = module.network[0].vnet_id
   tags                          = var.databricks.tags
+  common_tags                   = var.common_tags
 }
 
 module "private_endpoints" {
@@ -96,6 +102,7 @@ module "private_endpoints" {
   subresource_names            = each.value.subresource_names
   dns_zone_names               = each.value.dns_zone_names
   dns_zone_resource_group_name = each.value.dns_zone_resource_group_name
+  tags                         = var.common_tags
 }
 
 module "network_watcher" {
@@ -105,4 +112,5 @@ module "network_watcher" {
   resource_group_name = var.network_watcher.resource_group_name
   name                = var.network_watcher.name
   location            = var.network_watcher.location
+  tags                = var.common_tags
 }

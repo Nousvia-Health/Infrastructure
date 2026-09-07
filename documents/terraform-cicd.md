@@ -115,6 +115,16 @@ keys in the tfvars file.
 
 The Azure app registration or user-assigned managed identity must be federated to GitHub with an OIDC trust condition for this repository and branch/environment.
 
+## Resource tags
+
+Deployment tfvars files must define `common_tags` with `Environment`,
+`Workload`, `Organization`, `ManagedBy`, `DataClass`, and `CostCenter` values.
+The Terraform root passes these tags to every supported resource module.
+Resource-specific tags take precedence over shared values. The deployment
+workflow does not invent or mutate tag values outside Terraform configuration;
+review tag changes in the plan. Subnets and diagnostic settings do not support
+tags, and Databricks-generated resources remain service-owned.
+
 ## Backend and state
 
 This repository does not ship a local Azure Storage backend configuration. The

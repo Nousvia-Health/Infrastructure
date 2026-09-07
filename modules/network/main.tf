@@ -13,6 +13,7 @@ variable "nat_gateway_subnet_name" {
 }
 variable "public_ip_name" { type = string }
 variable "public_ip_tags" { type = map(string) }
+variable "common_tags" { type = map(string) }
 variable "nsg_ownership" {
   type    = string
   default = "platform_managed"
@@ -56,7 +57,7 @@ resource "azurerm_public_ip" "nat" {
   sku                  = "Standard"
   zones                = ["1", "2", "3"]
   ddos_protection_mode = "Disabled"
-  tags                 = var.public_ip_tags
+  tags                 = merge(var.common_tags, var.public_ip_tags)
 }
 
 resource "azurerm_nat_gateway" "this" {
@@ -66,7 +67,7 @@ resource "azurerm_nat_gateway" "this" {
   sku_name                = "Standard"
   idle_timeout_in_minutes = 4
   zones                   = ["1"]
-  tags                    = {}
+  tags                    = var.common_tags
 }
 
 resource "azurerm_nat_gateway_public_ip_association" "this" {
@@ -78,7 +79,7 @@ resource "azurerm_network_security_group" "this" {
   name                = var.nsg_name
   location            = "eastus2"
   resource_group_name = var.resource_group_name
-  tags                = {}
+  tags                = var.common_tags
 
   lifecycle {
     ignore_changes = [security_rule, tags]
@@ -106,6 +107,7 @@ resource "azurerm_private_dns_zone" "this" {
   for_each            = toset(keys(var.private_dns_zone_link_names))
   name                = each.value
   resource_group_name = var.resource_group_name
+  tags                = var.common_tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
@@ -115,6 +117,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   private_dns_zone_name = azurerm_private_dns_zone.this[each.key].name
   virtual_network_id    = azurerm_virtual_network.this.id
   registration_enabled  = false
+  tags                  = var.common_tags
 }
 
 data "azurerm_subnet" "dbx_host" {

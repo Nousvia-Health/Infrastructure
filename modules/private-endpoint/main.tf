@@ -5,6 +5,7 @@ variable "target_resource_id" { type = string }
 variable "subresource_names" { type = list(string) }
 variable "dns_zone_names" { type = list(string) }
 variable "dns_zone_resource_group_name" { type = string }
+variable "tags" { type = map(string) }
 
 resource "azurerm_private_endpoint" "this" {
   name                          = var.name
@@ -12,7 +13,7 @@ resource "azurerm_private_endpoint" "this" {
   resource_group_name           = var.resource_group_name
   subnet_id                     = var.subnet_id
   custom_network_interface_name = "${var.name}-nic"
-  tags                          = {}
+  tags                          = var.tags
 
   private_service_connection {
     name                           = var.name

@@ -10,6 +10,7 @@ variable "diagnostic_settings" {
     metric_categories  = optional(list(string), [])
   }))
 }
+variable "tags" { type = map(string) }
 
 resource "azurerm_log_analytics_workspace" "this" {
   name                       = var.name
@@ -19,6 +20,7 @@ resource "azurerm_log_analytics_workspace" "this" {
   retention_in_days          = var.retention_in_days
   internet_ingestion_enabled = var.internet_ingestion_enabled
   internet_query_enabled     = var.internet_query_enabled
+  tags                       = var.tags
 }
 
 resource "azurerm_monitor_diagnostic_setting" "this" {

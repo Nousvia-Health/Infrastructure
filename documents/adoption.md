@@ -27,6 +27,18 @@ This Terraform root is an adoption model for subscription `97ee3b56-2c25-44f9-a1
 
 The `config/dev.tfvars` file is local configuration and is ignored by Git. The tracked example contains resource IDs but no keys, secret values, workspace URL, or child metadata.
 
+## Tagging
+
+The root `common_tags` map is the baseline tag contract for the adopted dev
+environment: `Environment`, `Workload`, `Organization`, `ManagedBy`,
+`DataClass`, and `CostCenter`. Terraform merges these tags into supported
+resource types. Resource-specific tag maps override duplicate baseline keys.
+The live public IP and Databricks workspace retain their explicit resource
+tags where those values differ. Subnets and diagnostic settings are not tagged
+because their AzureRM resources do not support tags. Tags on the imported
+platform-managed NSG are ignored so Databricks remains the owner of its rules
+and metadata.
+
 ## Adoption procedure
 
 1. Authenticate to tenant `9629acab-3a56-4de8-85c5-bd2af6dd3bd0` and select the supplied subscription.

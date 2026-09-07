@@ -41,6 +41,12 @@ variable "network" {
   default = null
 }
 
+variable "common_tags" {
+  description = "Tags applied to all taggable Terraform-managed resources."
+  type        = map(string)
+  default     = {}
+}
+
 variable "storage" {
   description = "Existing ADLS Gen2 storage account."
   type = object({
@@ -54,7 +60,11 @@ variable "storage" {
 }
 
 variable "access_connector" {
-  type    = object({ resource_group_name = string, name = string })
+  type = object({
+    resource_group_name = string
+    name                = string
+    tags                = optional(map(string), {})
+  })
   default = null
 }
 
@@ -64,6 +74,7 @@ variable "key_vault" {
     name                          = string
     public_network_access_enabled = optional(bool, true)
     purge_protection_enabled      = optional(bool, true)
+    tags                          = optional(map(string), {})
   })
   default = null
 }

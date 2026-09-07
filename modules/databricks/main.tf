@@ -9,6 +9,7 @@ variable "vnet_id" { type = string }
 variable "tags" { type = map(string) }
 variable "public_network_access_enabled" { type = bool }
 variable "generated_resource_ownership" { type = string }
+variable "common_tags" { type = map(string) }
 
 resource "azurerm_databricks_workspace" "this" {
   name                                  = var.name
@@ -19,7 +20,7 @@ resource "azurerm_databricks_workspace" "this" {
   public_network_access_enabled         = var.public_network_access_enabled
   network_security_group_rules_required = "AllRules"
   infrastructure_encryption_enabled     = false
-  tags                                  = var.tags
+  tags                                  = merge(var.common_tags, var.tags)
 
   lifecycle {
     precondition {

@@ -14,6 +14,29 @@ Replace every `replace-me` and `replacewith...` value. Storage account names mus
 
 Real `*.tfvars` files are ignored by Git because they may contain environment-specific or sensitive values. The example files are safe templates and are tracked.
 
+## Required tags
+
+Define `common_tags` in every deployment tfvars file. The current dev template includes:
+
+```hcl
+common_tags = {
+  Environment  = "Dev"
+  Workload     = "Databricks"
+  Organization = "NousviaHealth"
+  ManagedBy    = "Terraform"
+  DataClass    = "Confidential"
+  CostCenter   = "Unassigned"
+}
+```
+
+These tags are applied to supported resource groups, VNets, NAT resources,
+public IPs, NSGs, private DNS zones and links, Storage, Key Vault, Log
+Analytics, Databricks, access connectors, private endpoints, and Network
+Watcher resources. Resource-specific maps, such as `databricks.tags` and
+`network.public_ip_tags`, override duplicate keys. Subnets and diagnostic
+settings are intentionally untagged because the AzureRM resources do not
+support tags; Databricks-generated children are service-owned.
+
 ## Local commands
 
 ```powershell

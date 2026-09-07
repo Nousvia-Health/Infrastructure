@@ -1,6 +1,15 @@
 subscription_id = "97ee3b56-2c25-44f9-a1bc-d603a09efc45"
 tenant_id       = "9629acab-3a56-4de8-85c5-bd2af6dd3bd0"
 
+common_tags = {
+  Environment    = "Dev"
+  Workload       = "Databricks"
+  Organization   = "NousviaHealth"
+  ManagedBy      = "Terraform"
+  DataClass      = "Confidential"
+  CostCenter     = "Unassigned"
+}
+
 resource_groups = {
   network = { name = "rg-nousviahealth-network-dev-eus2", location = "eastus2", tags = {} }
   data    = { name = "rg-nousviahealth-data-dev-eus2", location = "eastus2", tags = {} }

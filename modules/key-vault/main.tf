@@ -2,6 +2,7 @@ variable "resource_group_name" { type = string }
 variable "name" { type = string }
 variable "public_network_access_enabled" { type = bool }
 variable "purge_protection_enabled" { type = bool }
+variable "tags" { type = map(string) }
 
 resource "azurerm_key_vault" "this" {
   name                            = var.name
@@ -16,6 +17,7 @@ resource "azurerm_key_vault" "this" {
   enabled_for_disk_encryption     = false
   enabled_for_deployment          = false
   enabled_for_template_deployment = false
+  tags                            = var.tags
 }
 
 data "azurerm_client_config" "current" {}

@@ -3,6 +3,7 @@ variable "name" { type = string }
 variable "account_replication_type" { type = string }
 variable "public_network_access_enabled" { type = bool }
 variable "shared_access_key_enabled" { type = bool }
+variable "tags" { type = map(string) }
 
 resource "azurerm_storage_account" "this" {
   name                              = var.name
@@ -18,6 +19,7 @@ resource "azurerm_storage_account" "this" {
   public_network_access_enabled     = var.public_network_access_enabled
   shared_access_key_enabled         = var.shared_access_key_enabled
   infrastructure_encryption_enabled = false
+  tags                              = var.tags
 }
 
 output "id" { value = azurerm_storage_account.this.id }
