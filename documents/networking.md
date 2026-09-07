@@ -3,6 +3,8 @@ title: Azure Fileshare Private Networking Design
 status: Proposed
 ---
 
+> **Superseded for live dev adoption:** The active topology is documented in [adoption.md](adoption.md). This document's original Azure Files baseline is retained as historical design context; its public-access and NSG defaults do not describe the adopted Databricks environment.
+
 # Executive Summary
 
 This design provisions one or more Azure Storage Accounts and Azure Files shares reachable through Private Endpoints in reusable dedicated VNet subnets. Public network access is disabled, one shared private DNS zone is owned by each network, and an NSG limits each private endpoint subnet to Azure Virtual Network traffic. The Terraform root is an environment composition boundary using keyed maps, with explicit resource-group ownership for each resource family.
@@ -31,10 +33,10 @@ Excluded until requirements are confirmed:
 |---|---|---|
 | Workload | Azure Files share accessed by workloads connected to the VNet | Assumption |
 | Network | Private Endpoint is the only intended data-plane path | Explicit design decision |
-| Exposure | Storage public network access is disabled | Security default |
+| Exposure | Storage public network access is explicitly configurable; live dev remains enabled | Dev adoption exception |
 | Addressing | Default VNet is `10.20.0.0/16`; private endpoint subnet is `10.20.1.0/24`; subnets must be contained and non-overlapping | Configurable assumption |
 | Region | `eastus` default; must be confirmed for production | Configurable assumption |
-| Storage | Standard locally redundant StorageV2 account by default | Configurable assumption |
+| Storage | Standard LRS is the live dev baseline; ZRS/GZRS requires production RTO/RPO approval | Dev-only baseline |
 | Share | 100 GiB default quota; adjust for workload and cost | Configurable assumption |
 | Identity | Terraform uses the authenticated Azure identity; no credentials are stored in code | Constraint |
 | State | Production state should use an Azure Storage backend with locking | Operational requirement |

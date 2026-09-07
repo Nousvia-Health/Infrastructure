@@ -2,13 +2,15 @@
 
 Terraform infrastructure for Azure resources.
 
+This repository currently models adoption of the live NousviaHealth dev environment described in [documents/adoption.md](documents/adoption.md). The older generic Azure Files composition described below is stale and is retained only as historical context; use the live dev inputs and import manifest for this environment.
+
 ## Configuration
 
 Environment-specific Terraform variables are kept under [config](config/). Start with [config/dev.tfvars.example](config/dev.tfvars.example) or [config/prod.tfvars.example](config/prod.tfvars.example), copy it to a local `.tfvars` file, and replace the placeholder values.
 
-The root is a composition boundary: keyed `resource_groups`, `networks`, `storage_accounts`, and `private_endpoints` maps allow resources to use different resource groups and shared networking. A network owns the reusable Azure Files private DNS zone, and each storage account can contain keyed `file_shares`. Network, storage account, and private endpoint entries may override their resource group location and tags. The original singular variables remain a compatibility form for the current one-share deployment, and the repo includes a safe default storage account name so basic validation can run without environment-specific tfvars; real deployments should override these values in `config/*.tfvars` to ensure globally unique names and environment-specific settings.
+The active root composes existing resource groups, a shared VNet, ADLS Gen2 storage, private endpoints and DNS, Log Analytics, Key Vault, Databricks, an access connector, and Network Watcher. `imports.tf` is for controlled adoption only; do not import or apply without approval.
 
-Set the optional `databricks` object to deploy the private `nousviahealth-dev` workspace. The Databricks module creates a dedicated `eastus2` resource group, VNet, delegated public/private workspace subnets, a separate private endpoint subnet, ADLS Gen2 storage, and private DNS zones/endpoints. Public network access is disabled and secure cluster connectivity is enabled; Azure creates the Databricks-managed resource group separately.
+Set the optional `databricks` object to adopt the existing private `nousviahealth-dev` workspace. The module reads the Databricks-managed workspace subnet associations and does not declare generated resource-group children, NSG rules, private endpoint NICs, or network intent policies. Public network access and secure connectivity are explicit environment inputs; the supplied dev configuration preserves the observed live posture.
 
 Each private endpoint subnet must be fully contained in its network address space. Network address spaces and private endpoint subnet CIDRs must not overlap across network entries. A private DNS zone name may be used by only one network in a given resource group; the root rejects duplicate resource-group/zone-name pairs because Azure DNS zone names are resource-group scoped. Keyed outputs are authoritative for map mode. The singular share URL compatibility output selects the first share by sorted logical key and does not assume a `shared` key.
 

@@ -2,6 +2,8 @@
 
 Environment configuration files are Terraform variable files. Keep one file per deployment environment. The root composition is keyed by logical names: `resource_groups`, `networks`, `storage_accounts`, and `private_endpoints`.
 
+For the current live dev environment, use [dev.tfvars.example](dev.tfvars.example) and review [../documents/adoption.md](../documents/adoption.md). The old generic Azure Files map guidance below is historical and does not describe the active adoption root.
+
 ## Create a local configuration
 
 ```powershell
