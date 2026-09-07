@@ -59,15 +59,33 @@ import {
 }
 
 import {
-  for_each = var.network.private_dns_zone_link_names
-  to       = module.network[0].azurerm_private_dns_zone.this[each.key]
-  id       = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/${each.key}"
+  to = module.network[0].azurerm_private_dns_zone.this["privatelink.blob.core.windows.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net"
 }
 
 import {
-  for_each = var.network.private_dns_zone_link_names
-  to       = module.network[0].azurerm_private_dns_zone_virtual_network_link.this[each.key]
-  id       = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/${each.key}/virtualNetworkLinks/${each.value}"
+  to = module.network[0].azurerm_private_dns_zone.this["privatelink.dfs.core.windows.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.dfs.core.windows.net"
+}
+
+import {
+  to = module.network[0].azurerm_private_dns_zone.this["privatelink.vaultcore.azure.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net"
+}
+
+import {
+  to = module.network[0].azurerm_private_dns_zone_virtual_network_link.this["privatelink.blob.core.windows.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.blob.core.windows.net/virtualNetworkLinks/link-nousviahealth-dev-eus2"
+}
+
+import {
+  to = module.network[0].azurerm_private_dns_zone_virtual_network_link.this["privatelink.dfs.core.windows.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.dfs.core.windows.net/virtualNetworkLinks/vnet-nousviahealth-dev-eus2"
+}
+
+import {
+  to = module.network[0].azurerm_private_dns_zone_virtual_network_link.this["privatelink.vaultcore.azure.net"]
+  id = "/subscriptions/${var.subscription_id}/resourceGroups/rg-nousviahealth-network-dev-eus2/providers/Microsoft.Network/privateDnsZones/privatelink.vaultcore.azure.net/virtualNetworkLinks/vnet-nousviahealth-dev-eus2"
 }
 
 import {
